@@ -107,9 +107,9 @@
     </style>
 
     <!-- Подключаем Firebase SDK -->
-    <script src="firebase-app.js"></script>
-    <script src="firebase-auth.js"></script>
-    <script src="firebase-database.js"></script>
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
 </head>
 <body>
 
@@ -378,8 +378,9 @@
 
         
         firebase.initializeApp(firebaseConfig);
-        database = firebase.database();
-        auth = firebase.auth();
+        database = firebase.compat.database();
+        auth = firebase.compat.auth();
+
 
 
 
@@ -611,8 +612,9 @@
                     document.getElementById('input-change-nick').value = localUser.nick;
 
                     // Переключаем на смартфон-лобби
-                    document.getElementById('screen-auth').style.display = 'none';
+                    document.getElementById('auth-panel').style.display = 'none';
                     document.getElementById('screen-dashboard').style.display = 'flex';
+
 
                     // Перерисовываем списки
                     refreshUiWalletsAndStyles();
@@ -668,19 +670,24 @@
 
         // Менеджер навигации по 5 вкладкам смартфона
         function switchMainTab(tabId) {
+            // Прячем все панели
             document.querySelectorAll('.view-panel').forEach(p => p.style.display = 'none');
+            // Снимаем синюю подсветку со всех кнопок навигации
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active-tab'));
 
-            document.getElementById('friends-main-block').style.display = 'flex';
-            document.getElementById('private-chat-block').style.display = 'none';
-
+            // Показываем нужную панель
             let panel = document.getElementById(tabId);
             if (panel) {
                 if (tabId === 'tab-store' || tabId === 'tab-profile') panel.style.display = 'flex';
                 else panel.style.display = 'block';
             }
-            document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active-tab');
+
+            // Находим кнопку по ID и красим её
+            let btnId = 'tab-btn-' + tabId.replace('tab-', '');
+            let activeBtn = document.getElementById(btnId);
+            if (activeBtn) activeBtn.classList.add('active-tab');
         }
+
 
         function switchStoreTab(viewId) {
             document.querySelectorAll('.store-view').forEach(v => v.style.display = 'none');
