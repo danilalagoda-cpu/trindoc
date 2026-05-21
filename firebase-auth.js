@@ -1,6 +1,6 @@
 /**
- * Îôèöèàëüíûé ëåãêèé REST-ìîñò äëÿ àóòåíòèôèêàöèè Firebase Auth
- * Ñîçäàåò ðåàëüíûå àêêàóíòû â îáëàêå Google áåç òÿæåëûõ áèáëèîòåê
+ * Ð¡Ð²ÐµÑ€Ñ…Ð»ÐµÐ³ÐºÐ¸Ð¹ REST-Ð¼Ð¾ÑÑ‚ Ð´Ð»Ñ Ð°ÑƒÑ‚ÐµÐ½Ñ‚Ð¸Ñ„Ð¸ÐºÐ°Ñ†Ð¸Ð¸ Firebase Auth
+ * Ð Ð°Ð±Ð¾Ñ‚Ð°ÐµÑ‚ Ñ‡ÐµÑ€ÐµÐ· Ð¿Ñ€ÑÐ¼Ñ‹Ðµ ÑÐµÑ‚ÐµÐ²Ñ‹Ðµ Ð·Ð°Ð¿Ñ€Ð¾ÑÑ‹ fetch
  */
 (function() {
     'use strict';
@@ -9,12 +9,12 @@
     class AuthCompat {
         constructor(app) {
             this.apiKey = app.options.apiKey;
-            this.currentUser = null;
+            this.currentUser = { delete: function() { return Promise.resolve(); } };
         }
 
-        // ÐÅÃÈÑÒÐÀÖÈß íîâîãî ïîëüçîâàòåëÿ ÷åðåç Google REST API
+        // Ð Ð•Ð“Ð˜Ð¡Ð¢Ð ÐÐ¦Ð˜Ð¯
         createUserWithEmailAndPassword(email, password) {
-            const url = `https://googleapis.com{this.apiKey}`;
+            const url = "https://googleapis.com" + this.apiKey;
             return fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -25,14 +25,15 @@
                 return res.json();
             })
             .then(data => {
-                this.currentUser = { uid: data.localId, email: data.email };
+                this.currentUser.uid = data.localId;
+                this.currentUser.email = data.email;
                 return { user: this.currentUser };
             });
         }
 
-        // ÂÕÎÄ ñóùåñòâóþùåãî ïîëüçîâàòåëÿ ÷åðåç Google REST API
+        // Ð’Ð¥ÐžÐ”
         signInWithEmailAndPassword(email, password) {
-            const url = `https://googleapis.com{this.apiKey}`;
+            const url = "https://googleapis.com" + this.apiKey;
             return fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -43,7 +44,8 @@
                 return res.json();
             })
             .then(data => {
-                this.currentUser = { uid: data.localId, email: data.email };
+                this.currentUser.uid = data.localId;
+                this.currentUser.email = data.email;
                 return { user: this.currentUser };
             });
         }
