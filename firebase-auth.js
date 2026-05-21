@@ -1,6 +1,6 @@
 /**
  * Сверхлегкий REST-мост для аутентификации Firebase Auth
- * Работает через прямые сетевые запросы fetch
+ * Защищен от любых перехватов fetch и искажений доменов
  */
 (function() {
     'use strict';
@@ -12,41 +12,53 @@
             this.currentUser = { delete: function() { return Promise.resolve(); } };
         }
 
-        // РЕГИСТРАЦИЯ
+        // РЕГИСТРАЦИЯ через XMLHttpRequest (в обход fetch)
         createUserWithEmailAndPassword(email, password) {
-            const url = "https://googleapis.com" + this.apiKey;
-            return fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
-            })
-            .then(res => {
-                if (!res.ok) return res.json().then(err => { throw { code: err.error.message.toLowerCase().replace(/_/g, '/') }; });
-                return res.json();
-            })
-            .then(data => {
-                this.currentUser.uid = data.localId;
-                this.currentUser.email = data.email;
-                return { user: this.currentUser };
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const url = "https://googleapis.com" + this.apiKey;
+                
+                xhr.open("POST", url, true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        const response = JSON.parse(xhr.responseText);
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            window.firebase.auth().currentUser.uid = response.localId;
+                            window.firebase.auth().currentUser.email = response.email;
+                            resolve({ user: window.firebase.auth().currentUser });
+                        } else {
+                            reject({ code: response.error.message.toLowerCase().replace(/_/g, '/') });
+                        }
+                    }
+                };
+                xhr.send(JSON.stringify({ email: email, password: password, returnSecureToken: true }));
             });
         }
 
-        // ВХОД
+        // ВХОД через XMLHttpRequest
         signInWithEmailAndPassword(email, password) {
-            const url = "https://googleapis.com" + this.apiKey;
-            return fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
-            })
-            .then(res => {
-                if (!res.ok) return res.json().then(err => { throw { code: err.error.message.toLowerCase().replace(/_/g, '/') }; });
-                return res.json();
-            })
-            .then(data => {
-                this.currentUser.uid = data.localId;
-                this.currentUser.email = data.email;
-                return { user: this.currentUser };
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                const url = "https://googleapis.com" + this.apiKey;
+                
+                xhr.open("POST", url, true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        const response = JSON.parse(xhr.responseText);
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            window.firebase.auth().currentUser.uid = response.localId;
+                            window.firebase.auth().currentUser.email = response.email;
+                            resolve({ user: window.firebase.auth().currentUser });
+                        } else {
+                            reject({ code: response.error.message.toLowerCase().replace(/_/g, '/') });
+                        }
+                    }
+                };
+                xhr.send(JSON.stringify({ email: email, password: password, returnSecureToken: true }));
             });
         }
     }
