@@ -357,11 +357,16 @@
 
    
     <script>
-        // Инициализация Firebase с твоими ключами и URL европейской базы данных!
+        // ИСПРАВЛЕНИЕ: Выносим флаг авторизации на самый верх до инициализации Firebase и функций
+        var isLoginMode = false; 
+        var currentUserId = null;
+        var selectedFriend = null;
+
+        // Конфигурация подключения к твоей базе данных Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyDT2TeUKx6vDv8cnt5XGWwvm0gULmNOh-I",
-            authDomain: "trindoc-26fb7.firebaseapp.com",
-            databaseURL: "https://trindoc-26fb7-default-rtdb.europe-west1.firebasedatabase.app/",
+            authDomain: "://firebaseapp.com",
+            databaseURL: "https://firebasedatabase.app",
             projectId: "trindoc-26fb7",
             storageBucket: "trindoc-26fb7.firebasestorage.app",
             messagingSenderId: "747632686457",
@@ -369,29 +374,21 @@
             measurementId: "G-370H9C580Z"
         };
 
+        // Запуск модулей Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const auth = firebase.auth();
 
-        // Переменная для хранения ID текущего сессионного юзера
-        let currentUserId = null;
-        let isLoginMode = false; // По умолчанию режим РЕГИСТРАЦИИ
-
-                // --- ЧАСТЬ 3: БЕЗОПАСНОСТЬ (АНТИЧИТ) И СЕТЕВАЯ АУТЕНТИФИКАЦИЯ ---
-
-        // Защищенное хранилище игровых ресурсов с контрольными суммами (хэшем) против ArtMoney / F12
+        // --- МЕХАНИКА ЗАЩИТЫ БАЛАНСА (АНТИЧИТ MTS) ---
         let secureVault = {
             _chips: 0,
             _trinki: 0,
             _hash: ""
         };
 
-        // Генерация хэша для проверки целостности памяти устройства
         function calculateMemorySignature(chips, trinki) {
             let secretKey = "TRINDOC_ANTITECH_SECURE_SALT_2026";
             let rawString = (chips * 3) + "_" + (trinki * 7) + "_" + secretKey;
-            
-            // Простейший быстрый хэш-алгоритм (аналог контрольной суммы)
             let hash = 0;
             for (let i = 0; i < rawString.length; i++) {
                 hash = (hash << 5) - hash + rawString.charCodeAt(i);
@@ -400,44 +397,36 @@
             return hash.toString(16);
         }
 
-        // Безопасная запись фишек и тринок в память
         function setSecureResources(chips, trinki) {
             secureVault._chips = chips;
             secureVault._trinki = trinki;
             secureVault._hash = calculateMemorySignature(chips, trinki);
         }
 
-        // Безопасное чтение ресурсов с мгновенным триггером античита при подмене
         function getSecureResources() {
             let currentCheck = calculateMemorySignature(secureVault._chips, secureVault._trinki);
-            
             if (currentCheck !== secureVault._hash) {
-                // ОБНАРУЖЕН ВЗЛОМ ПАМЯТИ ЧЕРЕЗ ARTMONEY / GAMEGUARDIAN!
                 triggerAntiCheatLockout();
                 return { chips: 0, trinki: 0, corrupted: true };
             }
             return { chips: secureVault._chips, trinki: secureVault._trinki, corrupted: false };
         }
 
-        // Функция жесткой блокировки аккаунта читера
         function triggerAntiCheatLockout() {
-            // Удаляем данные читера с сервера Firebase, чтобы он не зашел снова
             if (currentUserId) {
                 database.ref('users/' + currentUserId).remove();
-                auth.currentUser.delete();
+                if (auth.currentUser) auth.currentUser.delete();
             }
-            
-            // Выводим перманентный экран блокировки вместо игры
             document.body.innerHTML = `
                 <div style="background:#1a0505; color:#ef4444; width:100vw; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; font-family:sans-serif; text-align:center; padding:20px; box-sizing:border-box;">
-                    <h1 style="font-size:36px; margin-bottom:10px;">🔴 АККАУНТ ЗАБЛОКИРОВАН</h1>
-                    <p style="color:#d8dee9; font-size:16px; max-width:400px; line-height:1.5;">Система Memory Tampering Shield зафиксировала стороннее вмешательство в память игры (ArtMoney/F12). Ваш профиль удален из базы данных TRINDOC.</p>
+                    <h1 style="font-size:28px; margin-bottom:10px;">🔴 СИСТЕМА БЛОКИРОВКИ</h1>
+                    <p style="color:#d8dee9; font-size:14px; max-width:340px; line-height:1.5;">Обнаружено вмешательство в локальную память игры (ArtMoney/F12). Ваш аккаунт аннулирован в Firebase Realtime Database.</p>
                 </div>
             `;
         }
-
-        // --- ЛОГИКА ОКНА АВТОРpatchИЗАЦИИ И РЕГИСТРАЦИИ (FIREBASE) ---
         
+                // --- ЧАСТЬ 2: РЕГИСТРАЦИЯ, ВХОД И БАЗЫ ДАННЫХ ---
+
         // Переключение режимов: Регистрация <-> Вход
         function toggleAuthMode(toLogin) {
             isLoginMode = toLogin;
@@ -446,7 +435,7 @@
             const toggleText = document.getElementById('auth-toggle-text');
 
             if (isLoginMode) {
-                fieldNick.style.display = 'none'; // Никнейм при входе не нужен
+                fieldNick.style.display = 'none'; // Убираем ник при входе
                 btnSubmit.innerText = "НАЧАТЬ ИГРАТЬ";
                 toggleText.innerText = "Новый игрок? Зарегистрироваться";
             } else {
@@ -456,7 +445,7 @@
             }
         }
 
-        // Главный обработчик кнопки входа/регистрации
+        // Логика отправки данных в Firebase
         function processAuthAction() {
             const fieldLogin = document.getElementById('auth-login');
             const fieldPass = document.getElementById('auth-pass');
@@ -466,17 +455,15 @@
             let password = fieldPass.value.trim();
             let nickname = fieldNick.value.trim();
 
-            // Если логин не в виде email, симулируем его для Firebase Auth
             if (email && !email.includes('@')) {
                 email = email.toLowerCase() + "@trindoc.club";
             }
 
-            // Валидация пустых полей с красным неоновым миганием
             if (!email || !password || (!isLoginMode && !nickname)) {
                 [fieldLogin, fieldPass, fieldNick].forEach(f => {
                     if (f.style.display !== 'none' && !f.value.trim()) {
                         f.classList.remove('input-error-blink');
-                        void f.offsetWidth; // Триггер сброса анимации
+                        void f.offsetWidth;
                         f.classList.add('input-error-blink');
                     }
                 });
@@ -491,7 +478,7 @@
             }
 
             if (isLoginMode) {
-                // --- РЕЖИМ ВХОДА ---
+                // Вход в клуб
                 auth.signInWithEmailAndPassword(email, password)
                     .then((userCredential) => {
                         currentUserId = userCredential.user.uid;
@@ -503,12 +490,11 @@
                         printAuthError(error.code);
                     });
             } else {
-                // --- РЕЖИМ РЕГИСТРАЦИИ ---
+                // Создание нового аккаунта в Firebase
                 auth.createUserWithEmailAndPassword(email, password)
                     .then((userCredential) => {
                         currentUserId = userCredential.user.uid;
                         
-                        // Инициализируем чистую структуру нового игрока в Realtime Database
                         let defaultProfile = {
                             nickname: nickname,
                             chips: 1500,
@@ -518,7 +504,7 @@
                             ownedStyles: ["default"],
                             ownedShirts: ["default"],
                             inventory: { cheat: 0, return: 0, cancel: 0 },
-                            friendsList: "" // Строка формата "friend1,friend2"
+                            friendsList: ""
                         };
 
                         database.ref('users/' + currentUserId).set(defaultProfile, (error) => {
@@ -532,28 +518,68 @@
             }
         }
 
-        // Перевод системных кодов ошибок для красивого вывода в инпуты
         function printAuthError(code) {
             const fieldLogin = document.getElementById('auth-login');
             if (code === "auth/user-not-found" || code === "auth/wrong-password") {
-                fieldLogin.value = ""; fieldLogin.placeholder = "НЕВЕРНЫЙ ЛОГИН ИЛИ ПАРОЛЬ";
+                fieldLogin.value = ""; fieldLogin.placeholder = "НЕВЕРНЫЙ ХОД ИЛИ ПАРОЛЬ";
             } else if (code === "auth/email-already-in-use") {
                 fieldLogin.value = ""; fieldLogin.placeholder = "ЛОГИН УЖЕ ЗАНЯТ";
             }
         }
 
-                // --- ЧАСТЬ 4: СИНХРОНИЗАЦИЯ С ОБЛАКОМ И МЕНЕДЖЕР ВКЛАДОК ---
+        // --- БАЗЫ ДАННЫХ И СТИЛИ ИГРЫ ---
+        let localUser = { nick: "Загрузка...", ownedStyles: ["default"], ownedShirts: ["default"], inventory: { cheat: 0, return: 0, cancel: 0 }, friends: [] };
 
-        // Переменная локального кэша данных (чтобы не спамить запросами к базе)
-        let localUser = {
-            nick: "Загрузка...",
-            ownedStyles: ["default"],
-            ownedShirts: ["default"],
-            inventory: { cheat: 0, return: 0, cancel: 0 },
-            friends: []
+        const storeItems = {
+            shirts: [
+                { id: "shirt_blue", name: "Неоновый Синий", cost: 100, currency: "cash", preview: "🟦" },
+                { id: "shirt_purple", name: "Фиолетовый Меч", cost: 200, currency: "cash", preview: "🟪" },
+                { id: "shirt_gold", name: "Премиум «Империал»", cost: 30, currency: "cyber", preview: "👑" }
+            ],
+            nicks: [
+                { id: "nick_green", name: "Зеленый Кибер-Ник", cost: 50, currency: "cash", styleClass: "style-green" },
+                { id: "nick_rainbow", name: "Радужный Градиент", cost: 150, currency: "cash", styleClass: "style-rainbow" },
+                { id: "nick_vip", name: "Рамка-Змейка [ПРЕМИУМ]", cost: 40, currency: "cyber", styleClass: "style-vip-snake" }
+            ],
+            privs: [
+                { id: "cheat", name: "Рентген-взлом", cost: 10, currency: "cyber", desc: "Показывает случайную карту оппонента в чате стола" },
+                { id: "return", name: "Возврат карт", cost: 15, currency: "cyber", desc: "Сбросить руку и получить новые карты в текущем кону" },
+                { id: "cancel", name: "Отмена действия", cost: 20, currency: "cyber", desc: "Снимает твое последнее повышение, возвращая фишки" }
+            ]
         };
 
-        // Загрузка всей структуры профиля из Firebase Realtime Database
+        const achievementsList = [
+            { id: "ach_1", title: "В СЕТИ СИНДИКАТА", desc: "Пройти верификацию и авторизоваться в системе клуба.", done: true },
+            { id: "ach_2", title: "ЖЕЛЕЗНЫЙ БЛАНК", desc: "Разорить Алексея или Марию, сделав крупный Рейз вслепую.", done: false },
+            { id: "ach_3", title: "КОРОЛЬ МАСГЕЙ", desc: "Успешно собрать высшую комбинацию Триплет из трех Тузов.", done: false }
+        ];
+
+        // Добавляем продвинутые стили анимации
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            .style-green { color: #10b981 !important; }
+            .style-rainbow {
+                background: linear-gradient(90deg, #ff007f, #7f00ff, #00f0ff, #ff007f);
+                background-size: 300% 100%;
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: r-flow 3s linear infinite;
+                font-weight: bold;
+            }
+            @keyframes r-flow { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+            .style-vip-snake {
+                color: #ecc94b !important;
+                padding: 2px 8px;
+                border: 2px dashed #ecc94b;
+                border-radius: 12px;
+                background: rgba(236,201,75,0.05);
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+                // --- ЧАСТЬ 3: СИНХРОНИЗАЦИЯ С CLOUD И ЛОГ-ВИ ТРИНА ТОРГОВЛИ ---
+
+        // Прогрузка структуры профиля из Realtime Database при успешном входе
         function loadUserProfileFromCloud() {
             if (!currentUserId) return;
 
@@ -564,26 +590,27 @@
                     localUser.ownedStyles = data.ownedStyles || ["default"];
                     localUser.ownedShirts = data.ownedShirts || ["default"];
                     localUser.inventory = data.inventory || { cheat: 0, return: 0, cancel: 0 };
-                    
-                    // Загружаем друзей из строки формата CSV
+                    localUser.activeShirt = data.activeShirt || "default";
+
+                    // Десериализация строки друзей
                     let friendsStr = data.friendsList || "";
                     localUser.friends = friendsStr ? friendsStr.split(',').map(f => {
                         let parts = f.split(':');
                         return { nick: parts[0], level: parseInt(parts[1]) || 1, shirt: parts[2] || "default", giftsCount: parseInt(parts[3]) || 0 };
                     }) : [];
 
-                    // Записываем фишки и Тринки в защищенную античитом ячейку памяти!
+                    // Защищаем подгруженный баланс в MTS Античит
                     setSecureResources(data.chips || 1500, data.trinki || 50);
 
-                    // Прогружаем никнейм на экранах лобби
+                    // Ставим ник на HUD
                     document.getElementById('label-username').innerText = localUser.nick;
                     document.getElementById('input-change-nick').value = localUser.nick;
 
-                    // Переключаем интерфейс на экран смартфона
+                    // Переключаем на смартфон-лобби
                     document.getElementById('screen-auth').style.display = 'none';
                     document.getElementById('screen-dashboard').style.display = 'flex';
 
-                    // Перерисовываем кошельки и списки
+                    // Перерисовываем списки
                     refreshUiWalletsAndStyles();
                     rebuildStoreCards();
                     rebuildProfileSubTabs();
@@ -592,14 +619,13 @@
             });
         }
 
-        // Автоматическое сохранение измененных данных обратно в Firebase Realtime Database
+        // Облачный пуш измененного сейва
         function saveUserProfileToCloud() {
             if (!currentUserId) return;
 
             let res = getSecureResources();
-            if (res.corrupted) return; // Если память взломана, сохранение блокируется античитом
+            if (res.corrupted) return; // Блокировка сохранения при взломе памяти
 
-            // Превращаем массив друзей обратно в компактную строку для базы данных
             let friendsStr = localUser.friends.map(f => `${f.nick}:${f.level}:${f.shirt}:${f.giftsCount}`).join(',');
 
             let updatedData = {
@@ -609,13 +635,13 @@
                 ownedStyles: localUser.ownedStyles,
                 ownedShirts: localUser.ownedShirts,
                 inventory: localUser.inventory,
+                activeShirt: localUser.activeShirt,
                 friendsList: friendsStr
             };
 
             database.ref('users/' + currentUserId).update(updatedData);
         }
 
-        // Обновление кошельков в HUD с проверкой античита
         function refreshUiWalletsAndStyles() {
             let res = getSecureResources();
             if (res.corrupted) return;
@@ -623,54 +649,43 @@
             document.getElementById('val-chips').innerText = res.chips;
             document.getElementById('val-trinki').innerText = res.trinki;
 
-            // Применяем купленный цвет/стиль никнейма в шапке
             let label = document.getElementById('label-username');
             label.className = "hud-username";
             
-            // Находим какой класс сейчас активен в базе (ищем по ownedStyles)
+            // Находим какой неоновый пресет ника активен
             let activeStyle = "default";
             storeItems.nicks.forEach(styleItem => {
                 if (localUser.ownedStyles.includes(styleItem.styleClass) && styleItem.isActive) {
                     activeStyle = styleItem.styleClass;
                 }
             });
-            
-            if (activeStyle !== "default") {
-                label.classList.add(activeStyle);
-            }
+            if (activeStyle !== "default") label.classList.add(activeStyle);
         }
 
-        // Переключение пяти главных верхних вкладок вертикального меню
+        // Менеджер навигации по 5 вкладкам смартфона
         function switchMainTab(tabId) {
             document.querySelectorAll('.view-panel').forEach(p => p.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active-tab'));
 
-            // Закрываем окно приватного чата, если переходим на другие вкладки
             document.getElementById('friends-main-block').style.display = 'flex';
             document.getElementById('private-chat-block').style.display = 'none';
 
-            let targetPanel = document.getElementById(tabId);
-            if (targetPanel) {
-                if (tabId === 'tab-store' || tabId === 'tab-profile') {
-                    targetPanel.style.display = 'flex'; // Для бокового меню слева
-                } else {
-                    targetPanel.style.display = 'block';
-                }
+            let panel = document.getElementById(tabId);
+            if (panel) {
+                if (tabId === 'tab-store' || tabId === 'tab-profile') panel.style.display = 'flex';
+                else panel.style.display = 'block';
             }
             document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active-tab');
         }
 
-        // Переключение категорий Магазина (Боковое меню)
         function switchStoreTab(viewId) {
             document.querySelectorAll('.store-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.store-sub-tab').forEach(b => b.classList.remove('active-sub'));
 
             document.getElementById(viewId).style.display = 'block';
-            let key = 's-btn-' + viewId.replace('store-', '').replace('s', '');
-            document.getElementById(key).classList.add('active-sub');
+            document.getElementById('s-btn-' + viewId.replace('store-', '').replace('s', '')).classList.add('active-sub');
         }
 
-        // Переключение категорий Профиля (Боковое меню)
         function switchProfileTab(viewId) {
             document.querySelectorAll('.profile-view').forEach(v => v.style.display = 'none');
             document.querySelectorAll('.profile-sub-tab').forEach(b => b.classList.remove('active-sub'));
@@ -680,23 +695,20 @@
             document.getElementById(map[viewId]).classList.add('active-sub');
         }
 
-                // --- ЧАСТЬ 5: ЛОГИКА СНАБЖЕНИЯ И ОТРИСОВКИ МАГАЗИНА ---
-
-        // Генерация карточек товаров на Черном рынке
+        // --- ГЕНЕРАЦИЯ ВИДЖЕТОВ ЧЕРНОГО РЫНКА (МАГАЗИНА) ---
         function rebuildStoreCards() {
-            // 1. Отрисовка Рубашек Карт (Превью Туза лицевой стороной)
+            // Рубашки
             const shirtsGrid = document.getElementById('grid-store-shirts');
             shirtsGrid.innerHTML = '';
             storeItems.shirts.forEach(item => {
                 let isOwned = localUser.ownedShirts.includes(item.id);
-                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
                 shirtsGrid.innerHTML += `
-                    <div class="market-card">
-                        <div style="display:flex; align-items:center; gap:12px; text-align:left;">
-                            <div style="width:36px; height:50px; background:#fff; border-radius:4px; display:flex; justify-content:center; align-items:center; font-size:20px; color:#111; font-weight:bold; box-shadow:0 3px 6px rgba(0,0,0,0.4);">${item.preview}</div>
+                    <div class="market-card" style="background:#12141a; border:1px solid #232834; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:10px; text-align:left;">
+                            <div style="width:34px; height:46px; background:#fff; border-radius:4px; display:flex; justify-content:center; align-items:center; font-size:18px; color:#111; font-weight:bold;">${item.preview}</div>
                             <div>
-                                <div class="card-name" style="font-size:13px;">${item.name}</div>
-                                <div class="card-cost" style="font-size:12px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'};">${isOwned ? 'АКТИВИРОВАНО' : costText}</div>
+                                <div class="card-name" style="font-size:13px; font-weight:bold;">${item.name}</div>
+                                <div style="font-size:11px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'};">${isOwned ? 'КУПЛЕНО' : (item.currency==='cash'?item.cost+' фишек':item.cost+' ТРИНОК')}</div>
                             </div>
                         </div>
                         <button class="buy-btn" onclick="executeStoreTransaction('shirt', '${item.id}', ${item.cost}, '${item.currency}')" ${isOwned ? 'disabled style="opacity:0.3;"' : ''}>КУПИТЬ</button>
@@ -704,50 +716,50 @@
                 `;
             });
 
-            // 2. Отрисовка Оформления Ника (Строчки цветов и Премиум-рамки)
+            // Кастомизация ника
             const nicksGrid = document.getElementById('grid-store-nicks');
             nicksGrid.innerHTML = '';
             storeItems.nicks.forEach(item => {
                 let isOwned = localUser.ownedStyles.includes(item.styleClass);
-                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
                 nicksGrid.innerHTML += `
-                    <div class="market-card">
+                    <div class="market-card" style="background:#12141a; border:1px solid #232834; border-radius:10px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
                         <div style="text-align:left;">
-                            <div class="card-name ${item.styleClass}" style="font-size:15px; margin-bottom:2px; display:inline-block;">${localUser.nick}</div>
+                            <div class="card-name ${item.styleClass}" style="font-size:14px; margin-bottom:2px; display:inline-block;">${localUser.nick}</div>
                             <div style="font-size:11px; color:#4c566a; font-weight:bold;">${item.name}</div>
-                            <div class="card-cost" style="font-size:12px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; margin-top:4px;">${isOwned ? 'АКТИВИРОВАНО' : costText}</div>
+                            <div style="font-size:11px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; margin-top:2px;">${isOwned ? 'КУПЛЕНО' : (item.currency==='cash'?item.cost+' фишек':item.cost+' ТРИНОК')}</div>
                         </div>
                         <button class="buy-btn" onclick="executeStoreTransaction('nick', '${item.styleClass}', ${item.cost}, '${item.currency}')" ${isOwned ? 'disabled style="opacity:0.3;"' : ''}>КУПИТЬ</button>
                     </div>
                 `;
             });
 
-            // 3. Отрисовка скупаемых Привилегий в Количествах (Накапливаются)
+            // Привилегии в штуках
             const privsGrid = document.getElementById('grid-store-privs');
             privsGrid.innerHTML = '';
             storeItems.privs.forEach(item => {
-                let ownedCount = localUser.inventory[item.id] || 0;
-                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
+                let count = localUser.inventory[item.id] || 0;
                 privsGrid.innerHTML += `
-                    <div class="market-card" style="flex-direction:column; align-items:stretch; text-align:left; gap:8px;">
+                    <div class="market-card" style="background:#12141a; border:1px solid #232834; border-radius:10px; padding:12px; display:flex; flex-direction:column; align-items:stretch; text-align:left; gap:6px;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <div class="card-name" style="color:#81a1c1; font-size:14px;">${item.name}</div>
-                            <div style="background:#232834; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; color:#fff;">У ВАС: ${ownedCount} шт</div>
+                            <div class="card-name" style="color:#81a1c1; font-size:13px; font-weight:bold;">${item.name}</div>
+                            <div style="background:#232834; padding:2px 5px; border-radius:4px; font-size:10px; font-weight:bold;">В НАЛИЧИИ: ${count} шт</div>
                         </div>
-                        <div style="font-size:11px; color:#4c566a; line-height:1.3;">${item.desc}</div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
-                            <div class="card-cost" style="font-size:12px; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; font-weight:bold;">${costText}</div>
-                            <button class="buy-btn" style="background:#3b82f6; color:#fff; border:none;" onclick="executeStoreTransaction('priv', '${item.id}', ${item.cost}, '${item.currency}')">ЗАКУПИТЬ</button>
+                        <div style="font-size:11px; color:#4c566a; line-height:1.2;">${item.desc}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+                            <div style="font-size:11px; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; font-weight:bold;">${item.currency==='cash'?item.cost+' фишек':item.cost+' ТРИНОК'}</div>
+                            <button class="buy-btn" style="background:#3b82f6; border:none; color:#fff;" onclick="executeStoreTransaction('priv', '${item.id}', ${item.cost}, '${item.currency}')">ЗАКУПИТЬ</button>
                         </div>
                     </div>
                 `;
             });
         }
 
-        // Логика проведения списывания баланса с защитой Античита
+                // --- ЧАСТЬ 4: ПРОВЕДЕНИЕ ПОКУПОК, КАБИНЕТ И СТРОГИЕ НАГРАДЫ ---
+
+        // Логика проведения списания баланса в Магазине с защитой Античита
         function executeStoreTransaction(category, itemId, cost, currencyType) {
             let res = getSecureResources();
-            if (res.corrupted) return; // Срабатывает триггер блокировки читера
+            if (res.corrupted) return; // Срабатывает триггер блокировки читера при взломе памяти
 
             if (currencyType === 'cash') {
                 if (res.chips < cost) return;
@@ -757,7 +769,7 @@
                 res.trinki -= cost;
             }
 
-            // Начисление имущества по категориям
+            // Начисление имущества по категориям в локальный кэш
             if (category === 'shirt') {
                 localUser.ownedShirts.push(itemId);
             } else if (category === 'nick') {
@@ -766,19 +778,17 @@
                 localUser.inventory[itemId] = (localUser.inventory[itemId] || 0) + 1;
             }
 
-            // Перезаписываем хэшированную локальную память
+            // Перезаписываем хэшированную локальную память и пушим в Firebase RTDB
             setSecureResources(res.chips, res.trinki);
-            
-            // Запускаем выгрузку защищенного сейва в Firebase Realtime Database
             saveUserProfileToCloud();
             
-            // Обновляем визуал интерфейса
+            // Мгновенно обновляем интерфейсы
             refreshUiWalletsAndStyles();
             rebuildStoreCards();
             rebuildProfileSubTabs();
         }
 
-        // Начисление бесплатных тринок за "Рекламу"
+        // Начисление бесплатных тринок за "Просмотр Рекламы"
         function triggerAdReward() {
             let res = getSecureResources();
             if (res.corrupted) return;
@@ -790,11 +800,9 @@
             rebuildProfileSubTabs();
         }
 
-                // --- ЧАСТЬ 6: ЛОГИКА КАБИНЕТА И СТРОГИХ ДОСТИЖЕНИЙ ---
-
-        // Генерация списков внутри бокового меню Личного кабинета
+        // Генерация списков внутри бокового меню Личного Кабинета Профиля
         function rebuildProfileSubTabs() {
-            // 1. Отрисовка купленных СТИЛЕЙ никнейма
+            // 1. Отрисовка моих неоновых СТИЛЕЙ никнейма
             const nicksBox = document.getElementById('list-my-nicks');
             nicksBox.innerHTML = '';
             storeItems.nicks.forEach(styleItem => {
@@ -813,12 +821,12 @@
                 }
             });
 
-            // 2. Отрисовка купленных РУБАШЕК карт в Гардеробе
+            // 2. Отрисовка моих купленных РУБАШЕК карт в Гардеробе
             const shirtsBox = document.getElementById('list-my-shirts');
             shirtsBox.innerHTML = '';
             localUser.ownedShirts.forEach(shirtId => {
                 let isActive = localUser.activeShirt === shirtId;
-                let data = storeItems.shirts.find(s => s.id === shirtId) || { name: "Классическая рубашка", preview: "🃏" };
+                let data = storeItems.shirts.find(s => s.id === shirtId) || { name: "Классическая рубашка клуба", preview: "🃏" };
                 shirtsBox.innerHTML += `
                     <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
                         <div style="display:flex; align-items:center; gap:10px;">
@@ -830,7 +838,7 @@
                 `;
             });
 
-            // 3. Строгий наградной Зал Славы (Медали за достижения)
+            // 3. Строгий наградной Зал Славы (Медали достижений)
             const achBox = document.getElementById('list-achievements');
             achBox.innerHTML = '';
             achievementsList.forEach(ach => {
@@ -846,21 +854,10 @@
             });
         }
 
-        // Логика активации кастомизации имени
         function activateNickStylePreset(selectedStyleClass) {
-            // Сбрасываем флаги активности во всей базе стилей
             storeItems.nicks.forEach(item => {
                 item.isActive = (item.styleClass === selectedStyleClass);
             });
-
-            // Если выбрали дефолтный — сбрасываем в строку
-            if (selectedStyleClass === 'default') {
-                localUser.ownedStyles = ['default'];
-            } else {
-                // Оставляем только дефолт и текущий активный, чтобы не путать сервер
-                localUser.ownedStyles = ['default', selectedStyleClass];
-            }
-
             saveUserProfileToCloud();
             refreshUiWalletsAndStyles();
             rebuildProfileSubTabs();
@@ -873,23 +870,20 @@
             rebuildProfileSubTabs();
         }
 
-        // Изменение никнейма в поле Кабинета
+        // Ручное изменение никнейма в поле Кабинета
         function triggerChangeNick() {
             const input = document.getElementById('input-change-nick');
             let txt = input.value.trim();
             if (txt !== "" && txt !== localUser.nick) {
                 localUser.nick = txt;
-                
-                // Перезаписываем и пушим в облако Firebase
                 saveUserProfileToCloud();
-                
                 refreshUiWalletsAndStyles();
                 rebuildProfileSubTabs();
                 rebuildStoreCards();
             }
         }
 
-                // --- ЧАСТЬ 7: ЛОГИКА ДРУЗЕЙ, ИНСПЕКЦИИ И ПОДАРКОВ ---
+                // --- ЧАСТЬ 5: ДРУЗЬЯ, УДАЛЕНИЕ И ПОДАРКИ С АНТИЧИТОМ ---
 
         // Перерисовка списка контактов во вкладке «Друзья»
         function rebuildFriendsListView() {
@@ -935,7 +929,7 @@
 
             let isAlreadyFriend = localUser.friends.some(f => f.nick.toLowerCase() === query.toLowerCase());
             if (!isAlreadyFriend) {
-                // Симулируем добавление реального пользователя из базы
+                // Имитация добавления пользователя из базы данных
                 let newFriend = {
                     nick: query,
                     level: Math.floor(Math.random() * 22) + 2,
@@ -950,7 +944,7 @@
             }
         }
 
-        // Удаление друга из списка (кнопка-крестик)
+        // Мгновенное удаление друга из списка по крестику
         function removeFriendFromList(index) {
             localUser.friends.splice(index, 1);
             saveUserProfileToCloud();
@@ -981,12 +975,12 @@
             selectedFriend = null;
         }
 
-        // Логика покупки и отправки подарка другу
+        // Логика покупки и отправки подарка через Античит-хранилище
         function executeSendGift() {
             if (!selectedFriend) return;
 
             let res = getSecureResources();
-            if (res.corrupted) return;
+            if (res.corrupted) return; // Мгновенный бан при взломе памяти
 
             const gift = document.getElementById('select-gift-type').value;
 
@@ -1002,7 +996,7 @@
             selectedFriend.giftsCount++;
             document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount;
 
-            // Запись в защищенный кэш и пуш на сервера Firebase
+            // Фиксация в памяти и пуш в облако
             setSecureResources(res.chips, res.trinki);
             saveUserProfileToCloud();
 
@@ -1011,44 +1005,44 @@
             rebuildStoreCards();
         }
 
-                // --- ЧАСТЬ 8: ЛОГИКА РАБОЧЕГО ПРИВАТНОГО ЧАТА ---
+                // --- ЧАСТЬ 6: РАБОЧИЙ ПРИВАТНЫЙ ЧАТ С ДРУЗЬЯМИ ---
 
-        // Открытие экрана сообщений с конкретным другом
+        // Открытие экрана личных сообщений с выбранным другом
         function openFriendPrivateChat() {
             if (!selectedFriend) return;
             
             let friendNick = selectedFriend.nick;
             closeFriendInspect();
 
-            // Скрываем общий интерфейс друзей, разворачиваем окно чата
+            // Переключаем блоки интерфейса внутри вкладки друзей
             document.getElementById('friends-main-block').style.display = 'none';
             document.getElementById('private-chat-block').style.display = 'flex';
             
             document.getElementById('priv-chat-title').innerText = `ДИАЛОГ: ${friendNick}`;
             
-            // Очищаем и заполняем историю (симулируем приветствие от ИИ-друга)
+            // Чистим историю и создаем приветственное сообщение от ИИ-друга
             const chatBox = document.getElementById('priv-chat-messages');
             chatBox.innerHTML = `
-                <div style="color:#4c566a; text-align:center; font-size:11px; margin-bottom:5px;">Безопасное соединение установлено</div>
-                <div><strong style="color:#81a1c1;">${friendNick}:</strong> Привет! Готов погонять сегодня в TRINDOC? Что там по ставкам?</div>
+                <div style="color:#4c566a; text-align:center; font-size:11px; margin-bottom:5px;">Защищенное P2P соединение</div>
+                <div><strong style="color:#81a1c1;">${friendNick}:</strong> Привет! Ну что, сыграем сегодня кон в TRINDOC? Что по фишкам?</div>
             `;
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Закрытие чата и возврат к списку контактов
+        // Закрытие приватного диалога и возврат к общему списку друзей
         function closePrivateChat() {
             document.getElementById('private-chat-block').style.display = 'none';
             document.getElementById('friends-main-block').style.display = 'flex';
             rebuildFriendsListView();
         }
 
-        // Отправка текстового сообщения другу
+        // Отправка сообщения другу
         function sendPrivateMessage() {
             const input = document.getElementById('priv-chat-input');
             let text = input.value.trim();
             if (!text || !selectedFriend) return;
 
-            // Выводим сообщение игрока на экран
+            // Рендерим сообщение игрока на экран смартфона
             const chatBox = document.getElementById('priv-chat-messages');
             let userMsg = document.createElement('div');
             userMsg.innerHTML = `<strong style="color:#10b981;">Вы:</strong> ${text}`;
@@ -1062,12 +1056,11 @@
                 let friendNick = selectedFriend.nick;
                 let reply = document.createElement('div');
                 
-                // Рандомные ответы для живого общения
                 let lines = [
-                    "Хах, ладно! Погнали за стол, проверим твои нервы вслепую.",
-                    "Я сейчас занят торговлей в другой комнате, заскочу позже!",
-                    "Ого, звучит солидно. Пойду закуплю Рентген-взлом в магазине.",
-                    "Удачи на кону! Только не слей все фишки Марии."
+                    "Хах, ладно! Давай за стол, проверим твои нервы вслепую.",
+                    "Я сейчас в другом матче, заскочу через пару минут!",
+                    "Ого, звучит солидно. Пойду закуплю Рентген-взлом в магазине лобби.",
+                    "Удачи на кону! Главное не слей все фишки Марии."
                 ];
                 let randomLine = lines[Math.floor(Math.random() * lines.length)];
                 
@@ -1077,17 +1070,17 @@
             }, 1000);
         }
 
-        // Слушаем клавишу Enter внутри поля личных сообщений
+        // Слушаем нажатие клавиши Enter внутри поля личных сообщений
         document.getElementById('priv-chat-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendPrivateMessage();
         });
 
-                // --- ЧАСТЬ 9: ЛОГИКА ЗАПУСКА И СИНХРОНИЗАЦИИ ИГРОВОЙ КОМНАТЫ ---
+                // --- ЧАСТЬ 7: ИНИЦИАЛИЗАЦИЯ И ПОДКЛЮЧЕНИЕ К ИГРОВОМУ СТОЛУ ---
 
-        // Переход из главного меню за игровой стол (Триггер кнопки лобби)
+        // Переход из главного меню за игровой стол (Команда кнопки лобби)
         function requestStartGame() {
             let res = getSecureResources();
-            if (res.corrupted) return; // Если читер — блокируем
+            if (res.corrupted) return; // Защита от ArtMoney
 
             // Считываем настройки стола, выбранные игроком
             match.mode = document.getElementById('select-mode').value;
@@ -1123,7 +1116,7 @@
             document.getElementById('m-chips-bot1').innerText = 1500;
             document.getElementById('m-chips-bot2').innerText = 1500;
 
-            // Обнуляем банк, очищаем старые карты и бабблы
+            // Обнуляем банк, чистим старые карты и бабблы ставки
             match.pot = 0;
             match.bets = { player: 0, bot1: 0, bot2: 0 };
             match.activeRound = false;
@@ -1158,14 +1151,61 @@
             refreshUiWalletsAndStyles();
         }
 
-                // --- ЧАСТЬ 10: СТАДИИ РАЗДАЧИ И ВЕРТИКАЛЬНЫЙ РЕНДЕРИНГ КАРТ ---
+                // --- ЧАСТЬ 8: МАТЕМАТИКА РАЗДАЧИ И РЕНДЕРИНГ КАРТ НА ВЕРТИКАЛЬНОМ СУКНЕ ---
+
+        // Объект текущего активного матча за столом
+        let match = {
+            mode: "blind",
+            ante: 50,
+            bets: { player: 0, bot1: 0, bot2: 0 },
+            hands: { player: [], bot1: [], bot2: [] },
+            folded: { player: false, bot1: false, bot2: false },
+            pot: 0,
+            currentBet: 0,
+            roundStep: 0,     // 0: Пре-флоп (2 карты), 1: Ривер (3-я карта)
+            hasLooked: false, // Флаг: посмотрел ли игрок свои карты (игра вслепую)
+            activeRound: false,
+            currentTurn: 'player'
+        };
+
+        // Квантовый вылет карты из колоды (6, 7, 8, 9, 10, В, Д, К, Т)
+        function pullCardFromDeck() {
+            let rank = ranks[Math.floor(Math.random() * ranks.length)];
+            let suit = suits[Math.floor(Math.random() * suits.length)];
+            return { 
+                rank: rank.r, 
+                value: rank.v, 
+                suit: suit, 
+                isRed: (suit === '♥' || suit === '♦') 
+            };
+        }
+
+        // --- ВЫСШАЯ МАТЕМАТИКА ПОДСЧЕТА ОЧКОВ СЕКИ ---
+        function calculateHandScore(hand) {
+            if (hand.length === 0) return 0;
+
+            // 1. Ультимативная проверка на ТРИПЛЕТ (Три карты одного достоинства, например Д-Д-Д)
+            if (hand.length === 3 && hand[0].rank === hand[1].rank && hand[0].rank === hand[2].rank) {
+                // Три Туза по классике дают максимальные 36 очков. Любой другой триплет — 35 очков.
+                return hand[0].rank === 'Т' ? 36 : 35;
+            }
+
+            // 2. Расчет по мастям (карты разных мастей не складываются между собой)
+            let sums = { '♥': 0, '♦': 0, '♣': 0, '♠': 0 };
+            hand.forEach(c => {
+                sums[c.suit] += c.value;
+            });
+
+            // Находим и возвращаем максимальную сумму очков среди четырех мастей
+            return Math.max(sums['♥'], sums['♦'], sums['♣'], sums['♠']);
+        }
 
         // Запуск новой раздачи карт за столом TRINDOC
         function startHandLogic() {
             if (match.activeRound) return;
 
             let res = getSecureResources();
-            if (res.corrupted) return; // Проверка античита
+            if (res.corrupted) return; // Проверка античета
 
             match.activeRound = true;
             match.roundStep = 0;
@@ -1284,6 +1324,28 @@
             });
         }
 
+        // Вспомогательная функция скрытия/показа всплывающих плашек ставок (бабблов) на столе
+        function toggleTableBubble(id, value, isFolded = false) {
+            let el = document.getElementById(id);
+            if (!el) return;
+
+            if (isFolded) {
+                el.style.display = 'block';
+                el.innerText = "ПАС";
+                el.style.color = "#bf616a";
+                el.style.borderColor = "#bf616a";
+                el.style.background = "rgba(191, 97, 106, 0.15)";
+            } else if (value > 0) {
+                el.style.display = 'block';
+                el.innerText = `СТАВКА: ${value}`;
+                el.style.color = "#ebcb8b";
+                el.style.borderColor = "#ebcb8b";
+                el.style.background = "rgba(235, 203, 139, 0.15)";
+            } else {
+                el.style.display = 'none';
+            }
+        }
+
         // Синхронизация фишек, пота и неонового статуса «Вслепую» над аватаркой
         function syncMatchUiAndBubbles() {
             document.getElementById('match-pot-val').innerText = match.pot;
@@ -1319,7 +1381,7 @@
             toggleTableBubble('m-bubble-bot2', match.bets.bot2, match.folded.bot2);
         }
 
-                // --- ЧАСТЬ 11: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
+                // --- ЧАСТЬ 9: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
 
         // Обработка действий игрока на кнопках (Чек, Рейз, Пас)
         function actionPlayerMove(actionType) {
@@ -1461,9 +1523,9 @@
             syncMatchUiAndBubbles();
         }
 
-                // --- ЧАСТЬ 12: ФИНАЛ, МЕССЕНДЖЕР И БОЕВОЙ ИНВЕНТАРЬ ЗА СТОЛОМ ---
+                // --- ЧАСТЬ 10: ФИНАЛ, МЕССЕНДЖЕР И БОЕВОЙ ИНВЕНТАРЬ ЗА СТОЛОМ ---
 
-        // Финальный расчет очков и вскрытие карт
+        // Расчет итогов раунда
         function executeMatchShowdown() {
             match.activeRound = false;
 
@@ -1477,11 +1539,11 @@
             match.hasLooked = true;
             renderMatchCardsGraphics();
             
-            // Открываем карты ботов для всех участников
+            // Графически открываем карты ботов для всех участников
             renderSpecificBotGraphics('bot1', true);
             renderSpecificBotGraphics('bot2', true);
 
-            // Считаем итоговые очки тех, кто не сбросил карты
+            // Считаем очки тех, кто не спасовал
             let pScore = match.folded.player ? -1 : calculateHandScore(match.hands.player);
             let b1Score = match.folded.bot1 ? -1 : calculateHandScore(match.hands.bot1);
             let b2Score = match.folded.bot2 ? -1 : calculateHandScore(match.hands.bot2);
@@ -1495,15 +1557,15 @@
             let namesMap = { player: localUser.nick, bot1: "Алексей [Скала]", bot2: "Мария [Маньяк]" };
 
             if (maxScore === -1) {
-                appendRoomSystemMessage("Все игроки сбросили карты. Банк сгорает.");
+                appendRoomSystemMessage("Все игроки пасовали. Банк остается за столом.");
             } else {
-                appendRoomSystemMessage(`Вскрытие! Победил ${namesMap[winner]} с результатом ${maxScore} очков! Забрано фишек: ${match.pot}`);
+                appendRoomSystemMessage(`Вскрытие карт! Победил ${namesMap[winner]} с результатом ${maxScore} очков! Забрано фишек: ${match.pot}`);
                 
                 // Начисляем фишки победителю на столе
                 let targetChips = parseInt(document.getElementById(`m-chips-${winner}`).innerText);
                 document.getElementById(`m-chips-${winner}`).innerText = targetChips + match.pot;
 
-                // Если выиграл игрок, перезаписываем фишки в защищенную античитом локальную память и пушим в облако Firebase
+                // Если выиграл игрок, сохраняем выигрыш в профиль и пушим на Firebase
                 if (winner === 'player') {
                     let currentTrinki = getSecureResources().trinki;
                     setSecureResources(targetChips, currentTrinki);
@@ -1515,9 +1577,10 @@
             match.bets = { player: 0, bot1: 0, bot2: 0 };
             syncMatchUiAndBubbles();
             refreshUiWalletsAndStyles();
+            rebuildStoreCards();
         }
 
-        // --- ВНУТРИИГРОВОЙ ЧАТ КОМНАТЫ ---
+        // --- ЛОГИКА ОТПРАВКИ И ОТОБРАЖЕНИЯ ЧАТА МАТЧА ---
         function sendRoomTextMessage() {
             const input = document.getElementById('match-chat-input');
             let txt = input.value.trim();
@@ -1526,7 +1589,7 @@
             // СЕКРЕТНАЯ АДМИН-ФРАЗА: Защищенное начисление ресурсов разработчику в обход античита
             if (txt === "/root_trindoc_access") {
                 let res = getSecureResources();
-                setSecureResources(res.chips + 5000, res.trinki + 100); // Выдаем ресурсы
+                setSecureResources(res.chips + 5000, res.trinki + 100); 
                 saveUserProfileToCloud();
                 refreshUiWalletsAndStyles();
                 appendRoomSystemMessage("РЕЖИМ РАЗРАБОТЧИКА АКТИВИРОВАН: +5000 фишек, +100 Тринок");
@@ -1534,19 +1597,18 @@
                 return;
             }
 
-            appendRoomUserMessage(localUser.nick, txt, activeStyleClass);
+            appendRoomUserMessage(localUser.nick, txt, "default");
             input.value = '';
 
-            // Реакция ботов на сообщения в чате матча
             if (match.activeRound && Math.random() < 0.4) {
                 setTimeout(() => {
-                    appendRoomChatMessage("Мария [Маньяк]", "Меньше болтовни, больше фишек ставь! 😡");
+                    appendRoomChatMessage("Мария [Маньяк]", "Меньше слов в чате, больше фишек ставь! 😡");
                 }, 1000);
             }
         }
 
         function sendRoomSticker(smile) {
-            appendRoomUserMessage(localUser.nick, `<span style="font-size:18px;">${smile}</span>`, activeStyleClass);
+            appendRoomUserMessage(localUser.nick, `<span style="font-size:18px;">${smile}</span>`, "default");
             if (match.activeRound && Math.random() < 0.5) {
                 setTimeout(() => appendRoomStickerMessage("Алексей [Скала]", "😎"), 700);
             }
@@ -1571,7 +1633,7 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- ВСПЛЫВАЮЩИЙ ИНВЕНТАРЬ СПОСОБНОСТЕЙ ЗА СТОЛОМ ---
+        // --- ВСПЛЫВАЮЩИЙ ИНВЕНТАРЬ ПРИВИЛЕГИЙ ЗА СТОЛОМ ---
         function toggleMatchInventory(show) {
             const overlay = document.getElementById('match-inventory-overlay');
             if (!show) { overlay.style.display = 'none'; return; }
@@ -1602,7 +1664,7 @@
             overlay.style.display = 'flex';
         }
 
-        // Активация чит-карты прямо во время торгов
+        // Логика активации чит-карты во время торгов
         function useMatchPrivilegeCard(itemId) {
             if (!match.activeRound) {
                 appendRoomSystemMessage("Использовать привилегии можно только во время раунда!");
@@ -1614,7 +1676,6 @@
             saveUserProfileToCloud();
 
             if (itemId === 'cheat') {
-                // Эффект 1: Слив скрытой карты Марии в чат
                 if (!match.folded.bot2) {
                     let card = match.hands.bot2[0];
                     appendRoomSystemMessage(`[РЕНТГЕН] Перехвачена карта Марии: ${card.rank}${card.suit}!`);
@@ -1624,7 +1685,6 @@
                 }
             } 
             else if (itemId === 'return') {
-                // Эффект 2: Полная пересдача текущей руки игрока
                 let count = match.hands.player.length;
                 match.hands.player = [];
                 for (let i = 0; i < count; i++) match.hands.player.push(pullCardFromDeck());
@@ -1632,19 +1692,23 @@
                 appendRoomSystemMessage(match.hasLooked ? `[ПЕРЕСДАЧА] Новые карты открыты. Сила: ${calculateHandScore(match.hands.player)}` : "[ПЕРЕСДАЧА] Новые карты выданы ВСЛЕПУЮ.");
             } 
             else if (itemId === 'cancel') {
-                // Эффект 3: Отмена последнего повышения ставки
                 if (match.bets.player > match.ante) {
                     match.bets.player -= 100; match.pot -= 100;
                     let pChips = parseInt(document.getElementById('m-chips-player').innerText);
                     document.getElementById('m-chips-player').innerText = pChips + 100;
                     match.currentBet = Math.max(match.bets.player, match.bets.bot1, match.bets.bot2);
                     syncMatchUiAndBubbles();
-                    appendRoomSystemMessage("[ОТМЕНА СТАВКИ] Вы вернули $100 обратно на баланс матча.");
+                    appendRoomSystemMessage("[ОТМЕНА СТАВКИ] Вы вернули 100 фишек обратно на баланс матча.");
                 } else {
                     appendRoomSystemMessage("Нельзя отменить обязательное Анте.");
                 }
             }
         }
+
+        // Слушаем нажатие клавиши Enter внутри поля чата матча
+        document.getElementById('match-chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendRoomTextMessage();
+        });
     </script>
 </body>
 </html>
