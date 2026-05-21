@@ -502,6 +502,7 @@
         }
 
                 // Загрузка локального кэша и переключение экранов смартфона
+        // Загрузка локального кэша и переключение экранов смартфона
         function loadCustomProfileData(data) {
             // Переносим данные в оперативную память игры
             localUser.nick = data.nickname;
@@ -524,16 +525,17 @@
             document.getElementById('label-username').innerText = localUser.nick;
             document.getElementById('input-change-nick').value = localUser.nick;
 
-            // БРОНЕБОЙНЫЙ ФИКС: Гарантированно скрываем стартовое окно по любому существующему ID
-            if (document.getElementById('screen-auth')) {
-                document.getElementById('screen-auth').style.display = 'none';
-            }
-            if (document.getElementById('auth-panel')) {
-                document.getElementById('auth-panel').style.display = 'none';
-            }
-            if (document.getElementById('screen-login')) {
-                document.getElementById('screen-login').style.display = 'none';
-            }
+            // ФИКС НАЛОЖЕНИЯ: Принудительно гасим блок ввода и скрываем логотипы стартовой страницы
+            const authBlock = document.getElementById('auth-form-block');
+            if (authBlock) authBlock.style.display = 'none';
+            
+            const authLabels = document.querySelectorAll('.logo-main, .logo-sub');
+            authLabels.forEach(el => el.style.display = 'none');
+
+            // Скрываем стартовое окно по любому существующему в разметке ID
+            if (document.getElementById('screen-auth')) document.getElementById('screen-auth').style.display = 'none';
+            if (document.getElementById('auth-panel')) document.getElementById('auth-panel').style.display = 'none';
+            if (document.getElementById('screen-login')) document.getElementById('screen-login').style.display = 'none';
 
             // Включаем главное меню лобби
             document.getElementById('screen-dashboard').style.display = 'flex';
@@ -546,7 +548,13 @@
 
             // Принудительно подсвечиваем первую вкладку синим цветом
             switchMainTab('tab-lobby');
+
+            // АВТОЗАПУСК СЕТЕВОГО РАДАРА: Начинаем слушать создание комнат другими игроками
+            if (typeof listenActiveRooms === 'function') {
+                listenActiveRooms();
+            }
         }
+
 
         // Обновлённая функция сохранения измененного прогресса обратно в Firebase Realtime Database
         function saveUserProfileToCloud() {
@@ -1793,6 +1801,201 @@
             document.getElementById('val-chips').innerText = "0";
             document.getElementById('val-trinki').innerText = "0";
         });
+
+                // --- СЕТЕВОЙ ОНЛАЙН-ДВИЖОК КОМНАТ (БЕЗ АЛЕРТОВ) ---
+        let currentRoomId = null;
+
+        // Бесшовное создание комнаты в облаке Firebase
+        function triggerCreateOnlineRoom() {
+            let res = getSecureResources();
+            if (res.corrupted) return; // Защита от взлома памяти
+
+            let mode = document.getElementById('select-mode').value;
+            let ante = parseInt(document.getElementById('input-ante').value) || 50;
+
+            if (res.chips < ante) {
+                return; // Молча блокируем, если нет фишек
+            }
+
+            currentRoomId = "room_" + currentUserId;
+
+            let roomData = {
+                roomId: currentRoomId,
+                creator: localUser.nick,
+                creatorId: currentUserId,
+                creatorChips: res.chips,
+                ante: ante,
+                mode: mode,
+                status: "waiting", // Ожидаем подключения оппонента
+                guest: "",
+                guestId: "",
+                guestChips: 0
+            };
+
+            console.log("Создание стола в Firebase:", currentRoomId);
+            
+            // Записываем комнату в базу и сразу же переносим игрока за сукно
+            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
+                if (!error) {
+                    enterOnlineMatchLayout(roomData);
+                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за входом гостя
+                }
+            });
+        }
+
+        // Сетевой радар: Автоматически выводит чужие столы на экраны в реальном времени
+        function listenActiveRooms() {
+            console.log("Сетевой радар комнат запущен.");
+            
+            database.ref('rooms').on('value', (snapshot) => {
+                const roomsData = snapshot.val();
+                const box = document.getElementById('online-rooms-list-box');
+                if (!box) return;
+
+                box.innerHTML = '';
+
+                if (!roomsData) {
+                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:10px 0;">Нет активных столов. Откройте свой кон!</div>`;
+                    return;
+                }
+
+                let hasRooms = false;
+
+                Object.keys(roomsData).forEach(key => {
+                    let room = roomsData[key];
+                    
+                    // Выводим только те столы, которые ждут игроков и созданы другими людьми
+                    if (room.status === 'waiting' && room.creatorId !== currentUserId) {
+                        hasRooms = true;
+                        box.innerHTML += `
+                            <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; text-align:left;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол от: ${room.creator}</div>
+                                    <div style="font-size:11px; color:#4c566a; margin-top:2px;">Анте: <span style="color:#10b981; font-weight:bold;">${room.ante}</span> | Режим: ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}</div>
+                                </div>
+                                <button class="buy-btn" style="background:#10b981; color:#fff; padding:6px 12px; font-size:12px;" onclick="connectToOnlineRoom('${room.roomId}')">ВОЙТИ</button>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (!hasRooms) {
+                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:10px 0;">Нет доступных онлайн-столов. Ожидание игроков...</div>`;
+                }
+            });
+        }
+
+        // Вход в созданную комнату соперника в один клик
+        function connectToOnlineRoom(roomId) {
+            let res = getSecureResources();
+            if (res.corrupted) return;
+
+            database.ref('rooms/' + roomId).once('value').then((snapshot) => {
+                let room = snapshot.val();
+                if (!room || room.status !== 'waiting') return;
+
+                if (res.chips < room.ante) return;
+
+                // Записываем свои данные в карточку комнаты на сервере
+                let updates = {
+                    guest: localUser.nick,
+                    guestId: currentUserId,
+                    guestChips: res.chips,
+                    status: "playing" // Переводим стол в режим игры
+                };
+
+                database.ref('rooms/' + roomId).update(updates).then(() => {
+                    currentRoomId = roomId;
+                    room.guest = localUser.nick;
+                    room.guestId = currentUserId;
+                    room.guestChips = res.chips;
+                    room.status = "playing";
+                    
+                    enterOnlineMatchLayout(room);
+                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за ходами
+                });
+            });
+        }
+
+        // Переключение экрана смартфона на игровое сукно стола
+        function enterOnlineMatchLayout(room) {
+            document.getElementById('screen-dashboard').style.display = 'none';
+            document.getElementById('screen-match').style.display = 'flex';
+            
+            document.getElementById('match-pot-val').innerText = "0";
+            document.getElementById('match-chat-messages').innerHTML = '';
+            
+            // Настраиваем имена игроков на вертикальном столе мультиплеера
+            if (room.creatorId === currentUserId) {
+                // Если создатель — ты снизу, соперник сверху
+                document.getElementById('m-label-username').innerText = room.creator;
+                document.getElementById('m-chips-player').innerText = room.creatorChips;
+                
+                document.getElementById('m-chips-bot1').parentElement.style.display = 'block';
+                document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.guest ? room.guest : "Ожидание...";
+                document.getElementById('m-chips-bot1').innerText = room.guest ? room.guestChips : "0";
+                
+                // Прячем третьего лишнего бота, так как играем 1 на 1
+                document.getElementById('m-chips-bot2').parentElement.style.display = 'none';
+            } else {
+                // Если ты зашел гостем — ты снизу, создатель сверху
+                document.getElementById('m-label-username').innerText = room.guest;
+                document.getElementById('m-chips-player').innerText = room.guestChips;
+                
+                document.getElementById('m-chips-bot1').parentElement.style.display = 'block';
+                document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.creator;
+                document.getElementById('m-chips-bot1').innerText = room.creatorChips;
+                
+                document.getElementById('m-chips-bot2').parentElement.style.display = 'none';
+            }
+
+            appendRoomSystemMessage(`Вы вошли за стол. Анте: ${room.ante}. Режим: ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}`);
+            
+            // ФИКС КНОПКИ ВЫХОДА: Переписываем кнопку «ВЫЙТИ» со стола на сетевое удаление
+            const exitBtn = document.querySelector("#screen-match button[onclick*='exitFromMatchToLobby']");
+            if (exitBtn) {
+                exitBtn.setAttribute("onclick", "exitFromOnlineRoom()");
+            }
+        }
+
+        // Слежка за статусом стола (Нужна создателю, чтобы поймать момент входа гостя)
+        function listenRoomStatusChanges(roomId) {
+            database.ref('rooms/' + roomId).on('value', (snapshot) => {
+                let room = snapshot.val();
+                if (!room) return;
+
+                // Если кто-то зашел к нам за стол — обновляем HUD фишек и ника оппонента сверху
+                if (room.status === 'playing' && room.creatorId === currentUserId) {
+                    document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.guest;
+                    document.getElementById('m-chips-bot1').innerText = room.guestChips;
+                }
+            });
+        }
+
+        // Выход из комнаты с автоматическим закрытием стола в Firebase
+        function exitFromOnlineRoom() {
+            if (!currentRoomId) return;
+
+            // Если комнату покидает создатель — полностью удаляем её из Firebase, чтобы она пропала у всех из радара
+            if (currentRoomId === "room_" + currentUserId) {
+                database.ref('rooms/' + currentRoomId).remove();
+            } else {
+                // Если выходит гость — сбрасываем статус стола обратно на ожидание
+                let resetData = { guest: "", guestId: "", guestChips: 0, status: "waiting" };
+                database.ref('rooms/' + currentRoomId).update(resetData);
+            }
+
+            // Отключаем сетевые интервалы этой комнаты
+            database.ref('rooms/' + currentRoomId).off();
+            currentRoomId = null;
+
+            // Возвращаем экран лобби
+            document.getElementById('screen-match').style.display = 'none';
+            document.getElementById('screen-dashboard').style.display = 'flex';
+            
+            refreshUiWalletsAndStyles();
+            switchMainTab('tab-lobby');
+        }
 
     </script>
 </body>
