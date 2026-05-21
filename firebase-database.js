@@ -1,6 +1,6 @@
 /**
- * Реальный сетевой мост для работы с Firebase Realtime Database через REST API Яндекса/Google
- * Работает без внешних тяжелых библиотек, защищен от CORS
+ * Исправленный сетевой мост для работы с Firebase Realtime Database через REST API
+ * Защищен от глобальных перехватов fetch и синтаксических ошибок
  */
 (function() {
     'use strict';
@@ -20,7 +20,6 @@
             this.path = path || '';
             this.db = dbRef;
             this.key = this.path.split('/').pop() || null;
-            this.listeners = [];
         }
         child(childPath) {
             return new ReferenceCompat(this.path + '/' + childPath, this.db);
@@ -48,7 +47,7 @@
                 this.once().then(snap => { if (callback) callback(snap); });
             };
             run();
-            const intervalId = setInterval(run, 3000); // Опрашиваем базу раз в 3 секунды для синхронизации онлайна
+            const intervalId = setInterval(run, 3000); // Синхронизация онлайна
             window._fb_intervals = window._fb_intervals || [];
             window._fb_intervals.push(intervalId);
             return callback;
