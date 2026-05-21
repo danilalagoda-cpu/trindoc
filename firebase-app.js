@@ -1,6 +1,5 @@
 /**
- * Исправленное легкое ядро Firebase App
- * Защищено от CORS, пропусков и синтаксических ошибок
+ * Сверхлегкое ядро Firebase App для REST API
  */
 (function() {
     'use strict';
@@ -9,8 +8,9 @@
             this.options = options;
             this.name = name || '[DEFAULT]';
         }
-        database() { return window.firebase.database(this); }
-        auth() { return window.firebase.auth(this); }
+        database() { 
+            return window.firebase.database(this); 
+        }
     }
     const appsMap = new Map();
     const firebaseNamespace = {
