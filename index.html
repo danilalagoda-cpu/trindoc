@@ -209,22 +209,53 @@
                 <div class="nav-item" id="tab-btn-rules" onclick="switchMainTab('tab-rules')">Правила</div>
             </div>
 
-            <!-- ВКЛАДКА: ЛОББИ СТОЛОВ -->
-            <div class="view-panel active-view" id="tab-lobby" style="overflow-y: auto;">
-                <div style="background: #111216; padding: 15px; border-radius: 12px; border: 1px solid #282c37; margin-bottom: 15px;">
-                    <h3 style="margin-top:0; color:#3b82f6; font-size:15px; text-transform:uppercase;">Открыть новый кон</h3>
-                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-                        <label style="font-size:11px; color:#4c566a; font-weight:bold;">МЕХАНИКА ТОРГОВ</label>
-                        <select id="select-mode" style="background:#1c1e24; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; font-family:inherit; outline:none;">
-                            <option value="blind">С возможностью блефовать «Вслепую»</option>
-                            <option value="classic">Классический раунд (Только в открытую)</option>
-                        </select>
+            <!-- ВКЛАДКА: ЛОББИ ОНЛАЙН СТОЛОВ -->
+            <div class="view-panel active-view" id="tab-lobby" style="overflow-y: auto; padding: 12px; box-sizing: border-box;">
+                
+                <!-- Панель открытия нового стола -->
+                <div style="background: #161920; padding: 14px; border-radius: 12px; border: 1px solid #232731; margin-bottom: 14px;">
+                    <h3 style="margin: 0 0 12px 0; color: #3b82f6; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Открыть новый кон</h3>
+                    
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <!-- МЕХАНИКА ТОРГОВ -->
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-size: 10px; color: #4c566a; font-weight: bold; text-transform: uppercase;">Торги</label>
+                            <select id="select-mode" style="background: #0f1115; border: 1px solid #232731; padding: 10px; border-radius: 8px; color: #fff; font-family: inherit; font-size: 12px; outline: none; width: 100%;">
+                                <option value="blind">Вслепую (Блеф)</option>
+                                <option value="classic">В открытую (Классика)</option>
+                            </select>
+                        </div>
+                        
+                        <!-- ВЫБОР КОЛИЧЕСТВА ИГРОКОВ -->
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-size: 10px; color: #4c566a; font-weight: bold; text-transform: uppercase;">Мест за столом</label>
+                            <select id="select-max-players" style="background: #0f1115; border: 1px solid #232731; padding: 10px; border-radius: 8px; color: #fff; font-family: inherit; font-size: 12px; outline: none; width: 100%;">
+                                <option value="2">2 Игрока (1 на 1)</option>
+                                <option value="3">3 Игрока (Максимум)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-                        <label style="font-size:11px; color:#4c566a; font-weight:bold;">НАЧАЛЬНЫЙ ВЗНОС (АНТЕ)</label>
-                        <input type="number" id="input-ante" value="50" min="25" max="250" style="background:#1c1e24; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; font-family:inherit; outline:none;">
+
+                    <!-- СТАВКА АНТЕ -->
+                    <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px;">
+                        <label style="font-size: 10px; color: #4c566a; font-weight: bold; text-transform: uppercase;">Начальный взнос (Анте)</label>
+                        <input type="number" id="input-ante" value="50" min="25" max="500" step="25" style="background: #0f1115; border: 1px solid #232731; padding: 10px; border-radius: 8px; color: #fff; font-family: inherit; font-size: 13px; outline: none;">
                     </div>
-                    <button class="btn-phone" style="width:100%; padding:14px;" onclick="requestStartGame()">СОЗДАТЬ СТОЛ</button>
+                    
+                    <button class="btn-phone" style="width: 100%; padding: 12px; font-size: 14px; background: #3b82f6;" onclick="triggerCreateOnlineRoom()">ОТКРЫТЬ СТОЛ</button>
+                </div>
+
+                <!-- ЖИВАЯ ВИТРИНА АКТИВНЫХ СТОЛОВ В СЕТИ -->
+                <div style="margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #1a2330; padding-bottom: 6px;">
+                        <h4 style="margin: 0; color: #81a1c1; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 900;">Список активных столов:</h4>
+                        <span style="font-size: 10px; color: #10b981; font-weight: bold; background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">Облако REST</span>
+                    </div>
+                    
+                    <!-- Сюда скрипт .on() будет выплёвывать плитки созданных комнат -->
+                    <div id="online-rooms-list-box" style="display: flex; flex-direction: column; gap: 6px;">
+                        <div style="text-align: center; color: #4c566a; font-size: 12px; padding: 20px 0;">Поиск созданных столов в Firebase...</div>
+                    </div>
                 </div>
             </div>
 
@@ -559,6 +590,7 @@
             localUser.ownedShirts = data.ownedShirts || ["default"];
             localUser.inventory = data.inventory || { cheat: 0, return: 0, cancel: 0 };
             localUser.activeShirt = data.activeShirt || "default";
+            localUser.gifts = data.gifts || { gift_cigar: 0, gift_drink: 0 };
 
             // Парсим строку друзей
             let friendsStr = data.friendsList || "";
@@ -923,57 +955,102 @@
         }
 
         // Генерация списков внутри бокового меню Личного Кабинета Профиля
+        // Генерация списков внутри бокового меню Личного Кабинета Профиля
         function rebuildProfileSubTabs() {
             // 1. Отрисовка моих неоновых СТИЛЕЙ никнейма
             const nicksBox = document.getElementById('list-my-nicks');
-            nicksBox.innerHTML = '';
-            storeItems.nicks.forEach(styleItem => {
-                let hasStyle = localUser.ownedStyles.includes(styleItem.styleClass);
-                if (hasStyle) {
-                    let isActive = styleItem.isActive || false;
-                    nicksBox.innerHTML += `
-                        <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
-                            <div>
-                                <div class="hud-username ${styleItem.styleClass}" style="font-size:14px; font-weight:bold;">${localUser.nick}</div>
-                                <div style="font-size:11px; color:#4c566a; margin-top:2px;">${styleItem.name}</div>
+            if (nicksBox) {
+                nicksBox.innerHTML = '';
+                storeItems.nicks.forEach(styleItem => {
+                    let hasStyle = localUser.ownedStyles.includes(styleItem.styleClass);
+                    if (hasStyle) {
+                        let isActive = styleItem.isActive || false;
+                        nicksBox.innerHTML += `
+                            <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                                <div>
+                                    <div class="hud-username ${styleItem.styleClass}" style="font-size:14px; font-weight:bold;">${localUser.nick}</div>
+                                    <div style="font-size:11px; color:#4c566a; margin-top:2px;">${styleItem.name}</div>
+                                </div>
+                                <button class="buy-btn" onclick="activateNickStylePreset('${styleItem.styleClass}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'АКТИВЕН' : 'ВКЛЮЧИТЬ'}</button>
                             </div>
-                            <button class="buy-btn" onclick="activateNickStylePreset('${styleItem.styleClass}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'АКТИВЕН' : 'ВКЛЮЧИТЬ'}</button>
-                        </div>
-                    `;
-                }
-            });
+                        `;
+                    }
+                });
+            }
 
             // 2. Отрисовка моих купленных РУБАШЕК карт в Гардеробе
             const shirtsBox = document.getElementById('list-my-shirts');
-            shirtsBox.innerHTML = '';
-            localUser.ownedShirts.forEach(shirtId => {
-                let isActive = localUser.activeShirt === shirtId;
-                let data = storeItems.shirts.find(s => s.id === shirtId) || { name: "Классическая рубашка клуба", preview: "🃏" };
-                shirtsBox.innerHTML += `
-                    <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:26px; height:36px; background:#fff; border-radius:3px; display:flex; justify-content:center; align-items:center; font-size:16px; color:#111; font-weight:bold;">${data.preview}</div>
-                            <div style="font-size:12px; font-weight:bold;">${data.name}</div>
+            if (shirtsBox) {
+                shirtsBox.innerHTML = '';
+                localUser.ownedShirts.forEach(shirtId => {
+                    let isActive = localUser.activeShirt === shirtId;
+                    let data = storeItems.shirts.find(s => s.id === shirtId) || { name: "Классическая рубашка клуба", preview: "🃏" };
+                    shirtsBox.innerHTML += `
+                        <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:26px; height:36px; background:#fff; border-radius:3px; display:flex; justify-content:center; align-items:center; font-size:16px; color:#111; font-weight:bold;">${data.preview}</div>
+                                <div style="font-size:12px; font-weight:bold;">${data.name}</div>
+                            </div>
+                            <button class="buy-btn" onclick="activateCardShirtPreset('${shirtId}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'НАДЕТА' : 'НАДЕТЬ'}</button>
                         </div>
-                        <button class="buy-btn" onclick="activateCardShirtPreset('${shirtId}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'НАДЕТА' : 'НАДЕТЬ'}</button>
-                    </div>
-                `;
-            });
+                    `;
+                });
+            }
 
             // 3. Строгий наградной Зал Славы (Медали достижений)
             const achBox = document.getElementById('list-achievements');
-            achBox.innerHTML = '';
-            achievementsList.forEach(ach => {
-                achBox.innerHTML += `
-                    <div style="background:#111216; border:1px solid ${ach.done ? '#4c566a' : '#282c37'}; padding:12px; border-radius:8px; display:flex; align-items:center; gap:12px; opacity:${ach.done ? '1' : '0.45'};">
-                        <div style="width:32px; height:32px; border:2px solid ${ach.done ? '#ecc94b' : '#4c566a'}; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:13px; font-weight:bold; color:${ach.done ? '#ecc94b' : '#4c566a'}; background:rgba(0,0,0,0.3);">M</div>
-                        <div style="text-align:left;">
-                            <div style="font-weight:bold; font-size:12px; color:${ach.done ? '#fff' : '#a0aec0'}; letter-spacing:0.3px;">${ach.title}</div>
-                            <div style="font-size:11px; color:#4c566a; margin-top:2px; line-height:1.2;">${ach.desc}</div>
+            if (achBox) {
+                achBox.innerHTML = '';
+                achievementsList.forEach(ach => {
+                    achBox.innerHTML += `
+                        <div style="background:#111216; border:1px solid ${ach.done ? '#4c566a' : '#282c37'}; padding:12px; border-radius:8px; display:flex; align-items:center; gap:12px; opacity:${ach.done ? '1' : '0.45'};">
+                            <div style="width:32px; height:32px; border:2px solid ${ach.done ? '#ecc94b' : '#4c566a'}; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:13px; font-weight:bold; color:${ach.done ? '#ecc94b' : '#4c566a'}; background:rgba(0,0,0,0.3);">M</div>
+                            <div style="text-align:left;">
+                                <div style="font-weight:bold; font-size:12px; color:${ach.done ? '#fff' : '#a0aec0'}; letter-spacing:0.3px;">${ach.title}</div>
+                                <div style="font-size:11px; color:#4c566a; margin-top:2px; line-height:1.2;">${ach.desc}</div>
+                            </div>
                         </div>
-                    </div>
-                `;
-            });
+                    `;
+                });
+            }
+
+            // 4. ТВОЙ КУСОК: Отрисовка полученных ПОДАРКОВ на полке в Профиле
+            const giftsBox = document.getElementById('list-my-gifts');
+            if (giftsBox) {
+                giftsBox.innerHTML = '';
+                
+                // Подтягиваем данные из облачного кэша профиля (localUser загружается из Firebase при входе)
+                let myGifts = localUser.gifts || { gift_cigar: 0, gift_drink: 0 };
+                let cigarCount = myGifts.gift_cigar || 0;
+                let drinkCount = myGifts.gift_drink || 0;
+
+                if (cigarCount === 0 && drinkCount === 0) {
+                    giftsBox.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:15px 0;">Ваша полка подарков пока пуста</div>`;
+                } else {
+                    if (cigarCount > 0) {
+                        giftsBox.innerHTML += `
+                            <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; text-align:left;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">🚬 Элитная сигара</div>
+                                    <div style="font-size:11px; color:#4c566a; margin-top:2px;">Подарок от уважения клуба</div>
+                                </div>
+                                <span style="background:#232834; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:bold; color:#10b981;">${cigarCount} шт</span>
+                            </div>
+                        `;
+                    }
+                    if (drinkCount > 0) {
+                        giftsBox.innerHTML += `
+                            <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; text-align:left;">
+                                <div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">🥃 Дорогой виски</div>
+                                    <div style="font-size:11px; color:#4c566a; margin-top:2px;">Премиум донат-подарок</div>
+                                </div>
+                                <span style="background:#232834; padding:4px 8px; border-radius:4px; font-size:12px; font-weight:bold; color:#ecc94b;">${drinkCount} шт</span>
+                            </div>
+                        `;
+                    }
+                }
+            }
         }
 
         function activateNickStylePreset(selectedStyleClass) {
@@ -1098,98 +1175,139 @@
         }
 
         // Логика покупки и отправки подарка через Античит-хранилище
+        // Логика покупки и отправки подарка другу напрямую через Firebase
         function executeSendGift() {
             if (!selectedFriend) return;
 
             let res = getSecureResources();
-            if (res.corrupted) return; // Мгновенный бан при взломе памяти
+            if (res.corrupted) return; // Защита от ArtMoney
 
-            const gift = document.getElementById('select-gift-type').value;
+            const giftType = document.getElementById('select-gift-type').value;
+            let cost = giftType === 'gift_cigar' ? 150 : 10;
+            let currency = giftType === 'gift_cigar' ? 'cash' : 'cyber';
 
-            if (gift === 'gift_cigar') {
-                if (res.chips < 150) return;
-                res.chips -= 150;
-            } else if (gift === 'gift_drink') {
-                if (res.trinki < 10) return;
-                res.trinki -= 10;
-            }
+            // Проверяем баланс игрока перед отправкой
+            if (currency === 'cash' && res.chips < cost) return;
+            if (currency === 'cyber' && res.trinki < cost) return;
 
-            // Начисляем подарок на полку друга
-            selectedFriend.giftsCount++;
-            document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount;
+            // Списываем валюту у дарителя
+            if (currency === 'cash') res.chips -= cost;
+            else res.trinki -= cost;
 
-            // Фиксация в памяти и пуш в облако
+            // Записываем измененный баланс дарителя в защищенную память и пушим в Firebase
             setSecureResources(res.chips, res.trinki);
             saveUserProfileToCloud();
-
-            // Обновляем кошельки HUD
             refreshUiWalletsAndStyles();
-            rebuildStoreCards();
+
+            // Переводим ник друга в безопасный ID для базы
+            let friendId = selectedFriend.nick.replace(/[.#$/\[\]]/g, "_");
+
+            // Идем в Firebase в профиль друга, чтобы начислить ему подарок на полку
+            database.ref('users/' + friendId).once('value').then((snapshot) => {
+                let friendData = snapshot.val();
+                if (!friendData) return;
+
+                // Создаем или обновляем объект инвентаря подарков у друга
+                friendData.gifts = friendData.gifts || { gift_cigar: 0, gift_drink: 0 };
+                friendData.gifts[giftType] = (friendData.gifts[giftType] || 0) + 1;
+                
+                // Считаем общее количество для визитки
+                selectedFriend.giftsCount++;
+                document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount;
+
+                // Пушим обновленный профиль друга обратно в облако Firebase!
+                database.ref('users/' + friendId).update(friendData).then(() => {
+                    rebuildStoreCards();
+                });
+            });
         }
 
                 // --- ЧАСТЬ 6: РАБОЧИЙ ПРИВАТНЫЙ ЧАТ С ДРУЗЬЯМИ ---
 
-        // Открытие экрана личных сообщений с выбранным другом
+        // --- ЧАСТЬ 8: НАСТОЯЩИЙ ОБЛАЧНЫЙ ОНЛАЙН-ЧАТ С ДРУГОМ ---
+        let activeChatRefPath = null;
+
+        // Открытие живого чата с другом через Firebase
         function openFriendPrivateChat() {
             if (!selectedFriend) return;
             
             let friendNick = selectedFriend.nick;
             closeFriendInspect();
 
-            // Переключаем блоки интерфейса внутри вкладки друзей
+            // Скрываем список друзей, разворачиваем окно сообщений
             document.getElementById('friends-main-block').style.display = 'none';
             document.getElementById('private-chat-block').style.display = 'flex';
             
             document.getElementById('priv-chat-title').innerText = `ДИАЛОГ: ${friendNick}`;
             
-            // Чистим историю и создаем приветственное сообщение от ИИ-друга
-            const chatBox = document.getElementById('priv-chat-messages');
-            chatBox.innerHTML = `
-                <div style="color:#4c566a; text-align:center; font-size:11px; margin-bottom:5px;">Защищенное P2P соединение</div>
-                <div><strong style="color:#81a1c1;">${friendNick}:</strong> Привет! Ну что, сыграем сегодня кон в TRINDOC? Что по фишкам?</div>
-            `;
-            chatBox.scrollTop = chatBox.scrollHeight;
+            // Генерируем уникальный ID комнаты чата по алфавиту, чтобы у обоих игроков открывалась ОДНА папка
+            let chatRoomId = localUser.nick < friendNick ? 
+                `chat_${localUser.nick}_${friendNick}` : 
+                `chat_${friendNick}_${localUser.nick}`;
+            
+            activeChatRefPath = 'chats/' + chatRoomId;
+            
+            // Включаем живой радар обновлений чата через твой метод .on()
+            database.ref(activeChatRefPath).on('value', (snapshot) => {
+                const messagesData = snapshot.val();
+                const chatBox = document.getElementById('priv-chat-messages');
+                if (!chatBox) return;
+
+                chatBox.innerHTML = `<div style="color:#4c566a; text-align:center; font-size:11px; margin-bottom:5px;">Безопасное облачное соединение</div>`;
+
+                if (messagesData) {
+                    // Firebase возвращает сообщения списком, перебираем их по порядку
+                    Object.keys(messagesData).forEach(key => {
+                        let msg = messagesData[key];
+                        let isMe = msg.sender === localUser.nick;
+                        
+                        let div = document.createElement('div');
+                        div.style.marginBottom = "4px";
+                        
+                        if (isMe) {
+                            div.innerHTML = `<strong style="color:#10b981;">Вы:</strong> ${msg.text}`;
+                        } else {
+                            div.innerHTML = `<strong style="color:#81a1c1;">${msg.sender}:</strong> ${msg.text}`;
+                        }
+                        chatBox.appendChild(div);
+                    });
+                }
+                
+                // Автоматически прокручиваем чат вниз пальцем при новом сообщении
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
         }
 
-        // Закрытие приватного диалога и возврат к общему списку друзей
+        // Выход из чата обратно к списку контактов
         function closePrivateChat() {
+            if (activeChatRefPath) {
+                // Отключаем слежку за этой папкой чата, чтобы не тратить трафик
+                database.ref(activeChatRefPath).off();
+                activeChatRefPath = null;
+            }
+            
             document.getElementById('private-chat-block').style.display = 'none';
             document.getElementById('friends-main-block').style.display = 'flex';
             rebuildFriendsListView();
         }
 
-        // Отправка сообщения другу
+        // Отправка сообщения в облачную базу Firebase в реальном времени
         function sendPrivateMessage() {
             const input = document.getElementById('priv-chat-input');
             let text = input.value.trim();
-            if (!text || !selectedFriend) return;
+            if (!text || !activeChatRefPath) return;
 
-            // Рендерим сообщение игрока на экран смартфона
-            const chatBox = document.getElementById('priv-chat-messages');
-            let userMsg = document.createElement('div');
-            userMsg.innerHTML = `<strong style="color:#10b981;">Вы:</strong> ${text}`;
-            chatBox.appendChild(userMsg);
+            let newMessageData = {
+                sender: localUser.nick,
+                text: text,
+                timestamp: Date.now()
+            };
+
+            // Пушим сообщение на сервера Европы через твой родной .push() REST-клиента
+            database.ref(activeChatRefPath).push(newMessageData);
             
+            // Очищаем поле ввода под хват пальцем
             input.value = '';
-            chatBox.scrollTop = chatBox.scrollHeight;
-
-            // Симулируем мгновенный автоматический ответ друга
-            setTimeout(() => {
-                let friendNick = selectedFriend.nick;
-                let reply = document.createElement('div');
-                
-                let lines = [
-                    "Хах, ладно! Давай за стол, проверим твои нервы вслепую.",
-                    "Я сейчас в другом матче, заскочу через пару минут!",
-                    "Ого, звучит солидно. Пойду закуплю Рентген-взлом в магазине лобби.",
-                    "Удачи на кону! Главное не слей все фишки Марии."
-                ];
-                let randomLine = lines[Math.floor(Math.random() * lines.length)];
-                
-                reply.innerHTML = `<strong style="color:#81a1c1;">${friendNick}:</strong> ${randomLine}`;
-                chatBox.appendChild(reply);
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }, 1000);
         }
 
         // Слушаем нажатие клавиши Enter внутри поля личных сообщений
@@ -1854,47 +1972,54 @@
                 // --- СЕТЕВОЙ ОНЛАЙН-ДВИЖОК КОМНАТ (БЕЗ АЛЕРТОВ) ---
         let currentRoomId = null;
 
-        // Бесшовное создание комнаты в облаке Firebase
+          // --- ОБНОВЛЕННЫЙ СЕТЕВОЙ МУЛЬТИПЛЕЕР С ВЫБОРОМ МЕСТ ---
+        let currentRoomId = null;
+
+        // Создание стола с динамическими параметрами
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
-            if (res.corrupted) return; // Защита от взлома памяти
+            if (res.corrupted) return; // MTS Античит-блокировка
 
             let mode = document.getElementById('select-mode').value;
             let ante = parseInt(document.getElementById('input-ante').value) || 50;
+            let maxPlayers = parseInt(document.getElementById('select-max-players').value) || 2;
 
-            if (res.chips < ante) {
-                return; // Молча блокируем, если нет фишек
-            }
+            if (res.chips < ante) return; // Защита от нулевого баланса
 
             currentRoomId = "room_" + currentUserId;
 
+            // Архитектура стола под разное количество людей
             let roomData = {
                 roomId: currentRoomId,
-                creator: localUser.nick,
-                creatorId: currentUserId,
-                creatorChips: res.chips,
                 ante: ante,
                 mode: mode,
-                status: "waiting", // Ожидаем подключения оппонента
-                guest: "",
-                guestId: "",
-                guestChips: 0
+                maxPlayers: maxPlayers,
+                status: "waiting", // Статус: ждем людей
+                playersCount: 1,   // Мы уже внутри стола
+                
+                // Данные создателя (Игрок 1)
+                p1_id: currentUserId,
+                p1_name: localUser.nick,
+                p1_chips: res.chips,
+                
+                // Ячейки для Игрока 2 и Игрока 3
+                p2_id: "", p2_name: "", p2_chips: 0,
+                p3_id: "", p3_name: "", p3_chips: 0
             };
 
-            console.log("Создание стола в Firebase:", currentRoomId);
+            console.log("Регистрация стола на сервере:", currentRoomId);
             
-            // Записываем комнату в базу и сразу же переносим игрока за сукно
             database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
                 if (!error) {
                     enterOnlineMatchLayout(roomData);
-                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за входом гостя
+                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за новыми подключениями
                 }
             });
         }
 
-        // Сетевой радар: Автоматически выводит чужие столы на экраны в реальном времени
+        // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
         function listenActiveRooms() {
-            console.log("Сетевой радар комнат запущен.");
+            console.log("Облачный радар комнат активен.");
             
             database.ref('rooms').on('value', (snapshot) => {
                 const roomsData = snapshot.val();
@@ -1903,38 +2028,52 @@
 
                 box.innerHTML = '';
 
-                if (!roomsData) {
-                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:10px 0;">Нет активных столов. Откройте свой кон!</div>`;
+                if (!roomsData || Object.keys(roomsData).length === 0) {
+                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:11px; padding:15px 0; background:#12141a; border-radius:8px; border:1px dashed #232731;">Активных столов в клубе нет.<br>Откройте первый кон выше!</div>`;
                     return;
                 }
 
-                let hasRooms = false;
+                let totalVisibleRooms = 0;
 
                 Object.keys(roomsData).forEach(key => {
                     let room = roomsData[key];
                     
-                    // Выводим только те столы, которые ждут игроков и созданы другими людьми
-                    if (room.status === 'waiting' && room.creatorId !== currentUserId) {
-                        hasRooms = true;
+                    // Выводим только открытые столы, где еще есть свободные места
+                    if (room.status === 'waiting') {
+                        totalVisibleRooms++;
+                        
+                        // Формируем красивую плашку заполненности (например: Мест: 1 из 3)
+                        let slotsInfo = `Мест: ${room.playersCount} / ${room.maxPlayers}`;
+                        let isFull = room.playersCount >= room.maxPlayers;
+                        
                         box.innerHTML += `
-                            <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; text-align:left;">
+                            <div style="background:#161920; padding:12px; border-radius:10px; border:1px solid #232731; display:flex; justify-content:space-between; align-items:center; text-align:left; box-shadow:0 3px 6px rgba(0,0,0,0.15);">
                                 <div>
-                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол от: ${room.creator}</div>
-                                    <div style="font-size:11px; color:#4c566a; margin-top:2px;">Анте: <span style="color:#10b981; font-weight:bold;">${room.ante}</span> | Режим: ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}</div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол игрока: <span style="color:#3b82f6;">${room.p1_name}</span></div>
+                                    <div style="font-size:11px; color:#4c566a; margin-top:3px; font-weight:bold;">
+                                        Анте: <span style="color:#10b981;">${room.ante}</span> | 
+                                        ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}
+                                    </div>
                                 </div>
-                                <button class="buy-btn" style="background:#10b981; color:#fff; padding:6px 12px; font-size:12px;" onclick="connectToOnlineRoom('${room.roomId}')">ВОЙТИ</button>
+                                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                                    <span style="font-size:10px; font-weight:bold; color:${isFull ? '#bf616a' : '#ecc94b'}; background:rgba(0,0,0,0.2); padding:2px 6px; border-radius:4px;">${slotsInfo}</span>
+                                    <button class="buy-btn" style="background:#10b981; color:#fff; padding:5px 12px; font-size:11px; font-weight:bold; border-radius:6px; margin:0;" 
+                                            onclick="connectToOnlineRoom('${room.roomId}')" ${isFull ? 'disabled style="opacity:0.3;"' : ''}>
+                                        ПОДКЛЮЧИТЬСЯ
+                                    </button>
+                                </div>
                             </div>
                         `;
                     }
                 });
 
-                if (!hasRooms) {
-                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:10px 0;">Нет доступных онлайн-столов. Ожидание игроков...</div>`;
+                if (totalVisibleRooms === 0) {
+                    box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:11px; padding:15px 0; background:#12141a; border-radius:8px; border:1px dashed #232731;">Все столы заполнены или играют.<br>Создайте свою комнату!</div>`;
                 }
             });
         }
 
-        // Вход в созданную комнату соперника в один клик
+        // Посадка за чужой выбранный стол из списка
         function connectToOnlineRoom(roomId) {
             let res = getSecureResources();
             if (res.corrupted) return;
@@ -1942,26 +2081,40 @@
             database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                 let room = snapshot.val();
                 if (!room || room.status !== 'waiting') return;
-
                 if (res.chips < room.ante) return;
 
-                // Записываем свои данные в карточку комнаты на сервере
-                let updates = {
-                    guest: localUser.nick,
-                    guestId: currentUserId,
-                    guestChips: res.chips,
-                    status: "playing" // Переводим стол в режим игры
-                };
+                let count = room.playersCount;
+                let updates = {};
+
+                if (count === 1) {
+                    // Мы садимся вторыми (Игрок 2)
+                    updates.p2_id = currentUserId;
+                    updates.p2_name = localUser.nick;
+                    updates.p2_chips = res.chips;
+                    updates.playersCount = 2;
+                    
+                    // Если стол был рассчитан всего на двоих — переводим в статус игры
+                    if (room.maxPlayers === 2) {
+                        updates.status = "playing";
+                    }
+                } else if (count === 2 && room.maxPlayers === 3) {
+                    // Мы садимся третьими (Игрок 3)
+                    updates.p3_id = currentUserId;
+                    updates.p3_name = localUser.nick;
+                    updates.p3_chips = res.chips;
+                    updates.playersCount = 3;
+                    updates.status = "playing"; // Стол забит полностью, запускаем кон
+                } else {
+                    return; // Мест нет
+                }
 
                 database.ref('rooms/' + roomId).update(updates).then(() => {
                     currentRoomId = roomId;
-                    room.guest = localUser.nick;
-                    room.guestId = currentUserId;
-                    room.guestChips = res.chips;
-                    room.status = "playing";
-                    
-                    enterOnlineMatchLayout(room);
-                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за ходами
+                    // Скачиваем обновленную карточку стола и заходим на сукно
+                    database.ref('rooms/' + roomId).once('value').then((snap) => {
+                        enterOnlineMatchLayout(snap.val());
+                        listenRoomStatusChanges(currentRoomId);
+                    });
                 });
             });
         }
