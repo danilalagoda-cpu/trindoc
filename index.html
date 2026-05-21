@@ -1,0 +1,1650 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>TRINDOC онлайн</title>
+    <style>
+        /* Жесткий зажим интерфейса под вертикальный экран смартфона (9:16) */
+        body {
+            background-color: #0b0c10;
+            margin: 0; padding: 0;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; width: 100vw;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #e2e8f0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #phone-wrapper {
+            width: 100%; max-width: 410px;
+            height: 100%; max-height: 860px;
+            background-color: #171921;
+            display: flex; flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        @media (min-width: 450px) {
+            #phone-wrapper {
+                border: 6px solid #2e3440;
+                border-radius: 24px;
+                height: 95vh;
+            }
+        }
+
+        /* Экранные модули */
+        .screen {
+            display: none; flex-direction: column;
+            width: 100%; height: 100%;
+            box-sizing: border-box;
+            position: absolute; top: 0; left: 0;
+        }
+        .active-screen { display: flex !important; }
+
+        /* --- АВТОРИЗАЦИЯ И РЕГИСТРАЦИЯ --- */
+        #screen-auth { justify-content: center; align-items: center; padding: 30px; text-align: center; }
+        .logo-main { font-size: 48px; font-weight: 900; letter-spacing: 4px; color: #fff; margin: 0; }
+        .logo-main span { color: #3b82f6; font-size: 24px; }
+        .logo-sub { font-size: 11px; color: #4c566a; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 30px; }
+
+        .auth-box { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        .mobile-input {
+            background: #0f1115; border: 2px solid #2d313f; border-radius: 12px;
+            padding: 16px; color: #fff; font-size: 15px; outline: none;
+            text-align: center; font-family: inherit; transition: all 0.2s;
+        }
+        .mobile-input:focus { border-color: #3b82f6; }
+        
+        /* Мигание красным при ошибке или бане за читы */
+        @keyframes error-shake {
+            0% { border-color: #2d313f; }
+            50% { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+            100% { border-color: #2d313f; }
+        }
+        .input-error-blink { animation: error-shake 0.4s ease 2; }
+
+        .btn-phone {
+            background: #3b82f6; color: #fff; border: none;
+            padding: 16px; border-radius: 12px; font-weight: bold; font-size: 15px;
+            cursor: pointer; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);
+            transition: transform 0.1s;
+        }
+        .btn-phone:active { transform: scale(0.98); }
+        .toggle-auth-link { font-size: 13px; color: #81a1c1; cursor: pointer; margin-top: 15px; text-decoration: underline; }
+
+        /* --- ВЕРХНИЙ HUD И НАВИГАЦИЯ --- */
+        .hud-top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #111216; padding: 12px 20px; border-bottom: 1px solid #282c37;
+        }
+        .hud-profile { display: flex; align-items: center; gap: 10px; }
+        .hud-avatar {
+            width: 40px; height: 40px; border-radius: 50%;
+            background-color: #4c566a; border: 2px solid #3e4452;
+            display: flex; justify-content: center; align-items: center; font-size: 18px;
+        }
+        .hud-username { font-weight: bold; font-size: 16px; color: #e5e9f0; }
+        
+        .hud-wallets { display: flex; flex-direction: column; align-items: flex-end; font-weight: bold; font-size: 13px; gap: 3px; }
+        .wallet-chips { color: #10b981; }
+        .wallet-trinki { color: #ecc94b; display: flex; align-items: center; gap: 4px; }
+        
+        /* Иконка тринок из твоего png файла */
+        .trinki-icon { width: 14px; height: 14px; object-fit: contain; }
+
+        .hud-navigation { display: flex; background: #171920; border-bottom: 1px solid #282c37; overflow-x: auto; white-space: nowrap; }
+        .hud-navigation::-webkit-scrollbar { display: none; } /* Скрываем скроллбар на мобилках */
+        .nav-item {
+            padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 13px;
+            color: #4c566a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid transparent;
+        }
+        .nav-item.active-tab { color: #ffffff; border-bottom-color: #3b82f6; background: #1c1e24; }
+
+        .view-panel { flex: 1; display: none; overflow-y: auto; padding: 15px; box-sizing: border-box; }
+        .active-view { display: block; }
+    </style>
+
+    <!-- Подключаем Firebase SDK -->
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+    <script src="https://gstatic.com"></script>
+</head>
+<body>
+
+    <div id="phone-wrapper">
+        
+        <!-- ЭКРАН АВТОРИЗАЦИИ / РЕГИСТРАЦИИ -->
+        <div class="screen active-screen" id="screen-auth">
+            <div class="logo-sub">Карточный клуб тактики</div>
+            <h1 class="logo-main">TRINDOC<br><span>онлайн</span></h1>
+            
+            <div class="auth-box" id="auth-form-block">
+                <input type="text" id="auth-login" class="mobile-input" placeholder="EMAIL ИЛИ ЛОГИН">
+                <input type="password" id="auth-pass" class="mobile-input" placeholder="ПАРОЛЬ">
+                <input type="text" id="auth-nick" class="mobile-input" placeholder="ВАШ НИКНЕЙМ">
+                <button class="btn-phone" id="btn-auth-submit" onclick="processAuthAction()">ЗАРЕГИСТРИРОВАТЬСЯ</button>
+                <div class="toggle-auth-link" id="auth-toggle-text" onclick="toggleAuthMode(true)">Уже есть аккаунт? Войти</div>
+            </div>
+        </div>
+
+            <!-- ЭКРАН 2: ГЛАВНОЕ МЕНЮ И ЛОББИ -->
+        <div class="screen" id="screen-dashboard" style="height: 100%;">
+            <!-- Верхний HUD -->
+            <div class="hud-top-bar">
+                <div class="hud-profile">
+                    <div class="hud-avatar" id="avatar-display">👤</div>
+                    <div class="hud-username" id="label-username">Загрузка...</div>
+                </div>
+                <div class="hud-wallets">
+                    <div class="wallet-chips">Фишки: <span id="val-chips">0</span></div>
+                    <div class="wallet-trinki">Тринки: <span id="val-trinki">0</span> <img src="trinki.png" class="trinki-icon" onerror="this.style.display='none'"></div>
+                </div>
+            </div>
+
+            <!-- Вкладки навигации телефона -->
+            <div class="hud-navigation">
+                <div class="nav-item active-tab" id="tab-btn-lobby" onclick="switchMainTab('tab-lobby')">Столы</div>
+                <div class="nav-item" id="tab-btn-store" onclick="switchMainTab('tab-store')">Магазин</div>
+                <div class="nav-item" id="tab-btn-profile" onclick="switchMainTab('tab-profile')">Профиль</div>
+                <div class="nav-item" id="tab-btn-friends" onclick="switchMainTab('tab-friends')">Друзья</div>
+                <div class="nav-item" id="tab-btn-rules" onclick="switchMainTab('tab-rules')">Правила</div>
+            </div>
+
+            <!-- ВКЛАДКА: ЛОББИ СТОЛОВ -->
+            <div class="view-panel active-view" id="tab-lobby" style="overflow-y: auto;">
+                <div style="background: #111216; padding: 15px; border-radius: 12px; border: 1px solid #282c37; margin-bottom: 15px;">
+                    <h3 style="margin-top:0; color:#3b82f6; font-size:15px; text-transform:uppercase;">Открыть новый кон</h3>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                        <label style="font-size:11px; color:#4c566a; font-weight:bold;">МЕХАНИКА ТОРГОВ</label>
+                        <select id="select-mode" style="background:#1c1e24; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; font-family:inherit; outline:none;">
+                            <option value="blind">С возможностью блефовать «Вслепую»</option>
+                            <option value="classic">Классический раунд (Только в открытую)</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+                        <label style="font-size:11px; color:#4c566a; font-weight:bold;">НАЧАЛЬНЫЙ ВЗНОС (АНТЕ)</label>
+                        <input type="number" id="input-ante" value="50" min="25" max="250" style="background:#1c1e24; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; font-family:inherit; outline:none;">
+                    </div>
+                    <button class="btn-phone" style="width:100%; padding:14px;" onclick="requestStartGame()">СОЗДАТЬ СТОЛ</button>
+                </div>
+            </div>
+
+            <!-- ВКЛАДКА: МАГАЗИН (БОКОВОЕ МЕНЮ СЛЕВА) -->
+            <div class="view-panel" id="tab-store" style="padding:0; height: calc(100% - 120px);">
+                <div style="display: flex; width: 100%; height: 100%;">
+                    <div style="width: 100px; background: #111216; border-right: 1px solid #282c37; display:flex; flex-direction:column; text-align:center;">
+                        <div class="store-sub-tab active-sub" id="s-btn-shirt" onclick="switchStoreTab('store-shirts')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">РУБАШКА</div>
+                        <div class="store-sub-tab" id="s-btn-nick" onclick="switchStoreTab('store-nicks')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">НИК</div>
+                        <div class="store-sub-tab" id="s-btn-priv" onclick="switchStoreTab('store-privs')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">ПРИВИЛЕГИИ</div>
+                        <div class="store-sub-tab" id="s-btn-donate" onclick="switchStoreTab('store-donate')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#ecc94b; cursor:pointer; border-bottom:1px solid #282c37;">ДОНАТ</div>
+                    </div>
+                    <div style="flex:1; padding:15px; overflow-y:auto;" id="store-content-area">
+                        <div class="store-view" id="store-shirts" style="display:block;"><div style="display:flex; flex-direction:column; gap:12px;" id="grid-store-shirts"></div></div>
+                        <div class="store-view" id="store-nicks" style="display:none;"><div style="display:flex; flex-direction:column; gap:12px;" id="grid-store-nicks"></div></div>
+                        <div class="store-view" id="store-privs" style="display:none;"><div style="display:flex; flex-direction:column; gap:12px;" id="grid-store-privs"></div></div>
+                        <div class="store-view" id="store-donate" style="display:none;">
+                            <div style="background:#111216; border:1px solid #ecc94b; border-radius:8px; padding:15px; text-align:center;">
+                                <div style="font-weight:bold; font-size:14px; color:#ecc94b;">БЕСПЛАТНЫЕ ТРИНКИ</div>
+                                <div style="font-size:11px; margin:5px 0 12px 0; color:#4c566a;">Получите +50 Тринок за рекламу</div>
+                                <button onclick="triggerAdReward()" style="background:#ecc94b; color:#111216; border:none; padding:10px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer; width:100%;">СМОТРЕТЬ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ВКЛАДКА: ПРОФИЛЬ -->
+            <div class="view-panel" id="tab-profile" style="padding:0; height: calc(100% - 120px);">
+                <div style="display: flex; width: 100%; height: 100%;">
+                    <div style="width: 100px; background: #111216; border-right: 1px solid #282c37; display:flex; flex-direction:column; text-align:center;">
+                        <div class="profile-sub-tab active-sub" id="p-btn-main" onclick="switchProfileTab('profile-main')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">ПРОФИЛЬ</div>
+                        <div class="profile-sub-tab" id="p-btn-nicks" onclick="switchProfileTab('profile-my-nicks')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">СТИЛИ</div>
+                        <div class="profile-sub-tab" id="p-btn-shirts" onclick="switchProfileTab('profile-my-shirts')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">РУБАШКИ</div>
+                        <div class="profile-sub-tab" id="p-btn-ach" onclick="switchProfileTab('profile-achievements')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">НАГРАДЫ</div>
+                        <div class="profile-sub-tab" id="p-btn-gifts" onclick="switchProfileTab('profile-gifts')" style="padding:15px 5px; font-size:11px; font-weight:bold; color:#4c566a; cursor:pointer; border-bottom:1px solid #282c37;">ПОДАРКИ</div>
+                    </div>
+                    <div style="flex:1; padding:15px; overflow-y:auto;">
+                        <div class="profile-view" id="profile-main" style="display:block; text-align:center;">
+                            <div style="width:60px; height:60px; background:#4c566a; border-radius:50%; margin:0 auto 10px auto; display:flex; justify-content:center; align-items:center; font-size:24px;">👤</div>
+                            <input type="text" id="input-change-nick" style="background:#111216; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; text-align:center; width:80%; font-family:inherit; margin-bottom:10px;">
+                            <button class="btn-phone" style="padding:10px; width:85%; font-size:13px;" onclick="triggerChangeNick()">СОХРАНИТЬ</button>
+                        </div>
+                        <div class="profile-view" id="profile-my-nicks" style="display:none;"><div style="display:flex; flex-direction:column; gap:10px;" id="list-my-nicks"></div></div>
+                        <div class="profile-view" id="profile-my-shirts" style="display:none;"><div style="display:flex; flex-direction:column; gap:10px;" id="list-my-shirts"></div></div>
+                        <div class="profile-view" id="profile-achievements" style="display:none;"><div style="display:flex; flex-direction:column; gap:10px;" id="list-achievements"></div></div>
+                        <div class="profile-view" id="profile-gifts" style="display:none;"><div style="display:grid; grid-template-columns:1fr; gap:10px;" id="list-my-gifts"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ВКЛАДКА: ДРУЗЬЯ И ПРИВАТНЫЙ ЧАТ -->
+            <div class="view-panel" id="tab-friends" style="overflow-y: auto;">
+                <div style="display:flex; flex-direction:column; gap:12px;" id="friends-main-block">
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="input-search-friend" placeholder="Никнейм друга..." style="flex:1; background:#111216; border:1px solid #282c37; padding:12px; border-radius:8px; color:#fff; font-family:inherit; outline:none; font-size:14px;">
+                        <button class="btn-phone" style="padding:0 15px;" onclick="triggerSearchFriend()">ПОИСК</button>
+                    </div>
+                    <div id="list-friends-box" style="display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
+                <!-- ПРИВАТНЫЙ ЧАТ С ДРУГОМ (СКРЫТ ПО УМОЛЧАНИЮ) -->
+                <div id="private-chat-block" style="display:none; flex-direction:column; height:100%;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; background:#111216; padding:10px; border-radius:8px; margin-bottom:10px;">
+                        <span id="priv-chat-title" style="font-weight:bold; font-size:13px; color:#81a1c1;">Чат</span>
+                        <button onclick="closePrivateChat()" style="background:#bf616a; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;">НАЗАД</button>
+                    </div>
+                    <div id="priv-chat-messages" style="flex:1; background:#111216; border-radius:8px; padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; font-size:13px; min-height:220px; max-height:220px;"></div>
+                    <div style="display:flex; gap:5px; margin-top:8px;">
+                        <input type="text" id="priv-chat-input" placeholder="Сообщение другу..." style="flex:1; background:#111216; border:1px solid #282c37; border-radius:6px; padding:10px; color:#fff; outline:none; font-size:13px;">
+                        <button onclick="sendPrivateMessage()" style="background:#3b82f6; border:none; color:#fff; padding:0 15px; border-radius:6px; font-weight:bold; cursor:pointer;">-></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ВКЛАДКА: ПРАВИЛА -->
+            <div class="view-panel" id="tab-rules" style="font-size:13px; line-height:1.5; overflow-y:auto;">
+                <div style="background:#111216; border:1px solid #282c37; border-radius:8px; padding:15px;">
+                    <h3 style="margin-top:0; color:#3b82f6; font-size:14px; text-transform:uppercase;">Кодекс клуба TRINDOC</h3>
+                    <h4 style="color:#ecc94b; margin: 10px 0 3px 0;">ПРАВИЛА ИГРЫ:</h4>
+                    <p style="margin:0; color:#a0aec0;">Сдается по 3 карты. Очки считаются только по ОДНОЙ МЕСТНОЙ МАСТИ (Туз=11, К/Д/В/10=10). Триплет (три одинаковых карты) = 35-36 очков (бьет всё).</p>
+                    <h4 style="color:#ef4444; margin: 10px 0 3px 0;">ЗАПРЕТЫ:</h4>
+                    <p style="margin:0; color:#a0aec0;">Оскорбления в чате, тиминг (слив карт) и читерство караются баном аккаунта во всей базе Firebase.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- КАРКАС ИГРОВОГО СТОЛА (ВЕРТИКАЛЬНЫЙ МОБИЛЬНЫЙ ТАЙКУН-ФОРМАТ) -->
+        <div class="screen" id="screen-match" style="background:#14161d; height: 100%;">
+            <div style="background:#111216; padding:12px; border-bottom:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:bold;">
+                <div style="color:#81a1c1;">СТОЛ #77</div>
+                <div style="color:#10b981; font-size:14px;">БАНК: <span id="match-pot-val">0</span></div>
+                <button onclick="exitFromMatchToLobby()" style="background:#bf616a; color:#fff; border:none; padding:4px 8px; border-radius:4px; font-size:11px; cursor:pointer;">ВЫЙТИ</button>
+            </div>
+            
+            <!-- Вертикальное сукно стола -->
+            <div style="flex:1; background:#20232c; position:relative; margin:10px; border-radius:16px; border:4px solid #2d313f; display:flex; flex-direction:column; justify-content:space-between; padding:15px; box-sizing:border-box;">
+                <!-- Верхняя линия: Оппоненты -->
+                <div style="display:flex; justify-content:space-between; width:100%;">
+                    <div style="background:#111216; padding:6px; border-radius:8px; border:1px solid #282c37; text-align:center; min-width:100px;">
+                        <div style="font-size:11px; font-weight:bold;">Алексей [Скала]</div>
+                        <div style="color:#10b981; font-size:12px;" id="m-chips-bot1">1500</div>
+                        <div id="m-bubble-bot1" style="color:#ebcb8b; font-size:10px; display:none;">$0</div>
+                        <div id="m-cards-bot1" style="display:flex; gap:3px; margin-top:4px; justify-content:center;"></div>
+                    </div>
+                    <div style="background:#111216; padding:6px; border-radius:8px; border:1px solid #282c37; text-align:center; min-width:100px;">
+                        <div style="font-size:11px; font-weight:bold;">Мария [Маньяк]</div>
+                        <div style="color:#10b981; font-size:12px;" id="m-chips-bot2">1500</div>
+                        <div id="m-bubble-bot2" style="color:#ebcb8b; font-size:10px; display:none;">$0</div>
+                        <div id="m-cards-bot2" style="display:flex; gap:3px; margin-top:4px; justify-content:center;"></div>
+                    </div>
+                </div>
+
+                <!-- Центр: Окно мини-мессенджера матча -->
+                <div style="flex:1; background:#111216; margin:10px 0; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; border:1px solid #282c37;">
+                    <div id="match-chat-messages" style="flex:1; padding:8px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; font-size:11px;"></div>
+                    <div style="display:flex; gap:3px; padding:4px; background:#171920; border-top:1px solid #282c37; overflow-x:auto;">
+                        <button onclick="sendRoomSticker('😎')" style="background:none; border:none; font-size:16px; cursor:pointer;">😎</button>
+                        <button onclick="sendRoomSticker('🤡')" style="background:none; border:none; font-size:16px; cursor:pointer;">🤡</button>
+                        <button onclick="sendRoomSticker('🤑')" style="background:none; border:none; font-size:16px; cursor:pointer;">🤑</button>
+                        <button onclick="sendRoomSticker('😡')" style="background:none; border:none; font-size:16px; cursor:pointer;">😡</button>
+                    </div>
+                    <div style="display:flex; padding:4px; background:#111216; gap:4px; border-top:1px solid #282c37;">
+                        <input type="text" id="match-chat-input" placeholder="Чат матча..." style="flex:1; background:#1c1e24; border:1px solid #282c37; border-radius:4px; padding:6px; color:#fff; font-size:11px; outline:none;">
+                        <button onclick="sendRoomTextMessage()" style="background:#3b82f6; border:none; color:#fff; padding:0 8px; border-radius:4px; font-size:11px; cursor:pointer;">-></button>
+                    </div>
+                </div>
+
+                <!-- Нижняя линия: Твои карты и профиль -->
+                <div style="display:flex; flex-direction:column; align-items:center; gap:5px; width:100%;">
+                    <div id="m-cards-player" style="display:flex; gap:6px; height:85px; justify-content:center;"></div>
+                    <div style="background:#111216; padding:6px; border-radius:8px; border:1px solid #282c37; text-align:center; min-width:130px;" id="m-profile-box">
+                        <div id="m-label-username" style="font-size:13px; font-weight:bold;">Вы</div>
+                        <div style="color:#10b981; font-size:12px;" id="m-chips-player">0</div>
+                        <div id="m-bubble-player" style="color:#ebcb8b; font-size:10px; display:none;">$0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ВСПЛЫВАЮЩИЙ ИНВЕНТАРЬ СПОСОБНОСТЕЙ -->
+            <div id="match-inventory-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:100; justify-content:center; align-items:center; padding:20px; box-sizing:border-box;">
+                <div style="background:#1f232c; border:2px solid #313745; padding:15px; border-radius:12px; width:100%; max-width:320px; display:flex; flex-direction:column; gap:10px;">
+                    <h4 style="margin:0; text-align:center; color:#ecc94b; font-size:13px;">ВЫБЕРИТЕ ПРИВИЛЕГИЮ</h4>
+                    <div style="display:flex; flex-direction:column; gap:8px;" id="match-inventory-list"></div>
+                    <button class="buy-btn" onclick="toggleMatchInventory(false)" style="width:100%; padding:10px;">ЗАКРЫТЬ</button>
+                </div>
+            </div>
+
+            <!-- Нижняя панель действий (Удобный хват пальцем) -->
+            <div style="display:flex; gap:6px; padding:10px; background:#111216; border-top:1px solid #282c37; justify-content:center; flex-wrap:wrap;">
+                <button class="action-btn" id="m-btn-deal" onclick="startHandLogic()" style="background:#81a1c1; color:#111216; font-weight:bold; border:none; padding:10px; border-radius:6px; font-size:12px; cursor:pointer;">РАЗДАЧА</button>
+                <button class="action-btn" id="m-btn-look" onclick="actionLookHand()" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:10px; border-radius:6px; font-size:12px; cursor:pointer;">КАРТЫ</button>
+                <button class="action-btn" id="m-btn-check" onclick="actionPlayerMove('check')" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:10px; border-radius:6px; font-size:12px; cursor:pointer;">ЧЕК</button>
+                <button class="action-btn" id="m-btn-raise" onclick="actionPlayerMove('raise')" disabled style="background:#bf616a; color:#fff; border:none; padding:10px; border-radius:6px; font-size:12px; cursor:pointer;">РЕЙЗ +100</button>
+                <button class="action-btn" id="m-btn-fold" onclick="actionPlayerMove('fold')" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:10px; border-radius:6px; font-size:12px; cursor:pointer;">ПАС</button>
+                <button class="action-btn" onclick="toggleMatchInventory(true)" style="background:#3b82f6; color:#fff; border:none; padding:10px; border-radius:6px; font-size:12px; cursor:pointer; width:100%; margin-top:4px; font-weight:bold;">ИСПОЛЬЗОВАТЬ ПРИВИЛЕГИЮ</button>
+            </div>
+        </div>
+
+        <!-- ВСПЛЫВАЮЩАЯ ВИЗИТКА ДРУГА -->
+        <div id="modal-friend-inspect" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(11,12,16,0.9); z-index:2000; justify-content:center; align-items:center; padding:20px; box-sizing:border-box;">
+            <div style="background:#1f232c; border:2px solid #313745; padding:20px; border-radius:12px; width:100%; max-width:320px; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid #2d313f; padding-bottom:10px;">
+                    <div style="width:40px; height:40px; background:#4c566a; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:18px;">👤</div>
+                    <div>
+                        <div id="inspect-username" style="font-weight:bold; font-size:15px;">Ник</div>
+                        <div style="font-size:11px; color:#4c566a;">Уровень: <span id="inspect-level" style="color:#81a1c1; font-weight:bold;">1</span></div>
+                    </div>
+                </div>
+                <div style="font-size:12px; display:flex; flex-direction:column; gap:4px; color:#d8dee9;">
+                    <div>Рубашка: <span id="inspect-shirt" style="font-weight:bold; color:#fff;">Обычная</span></div>
+                    <div>Подарки: <span id="inspect-gifts-count" style="font-weight:bold; color:#10b981;">0</span></div>
+                </div>
+                <div style="background:#111216; padding:8px; border-radius:6px; border:1px solid #282c37; display:flex; flex-direction:column; gap:6px;">
+                    <select id="select-gift-type" style="background:#1c1e24; border:1px solid #282c37; padding:8px; border-radius:6px; color:#fff; font-family:inherit; font-size:12px; outline:none;">
+                        <option value="gift_cigar">Элитная сигара (150 фишек)</option>
+                        <option value="gift_drink">Дорогой виски (10 Тринок)</option>
+                    </select>
+                    <button onclick="executeSendGift()" style="background:#10b981; color:#fff; border:none; padding:8px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer;">ПОДАРИТЬ</button>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button onclick="openFriendPrivateChat()" style="flex:1; background:#3b82f6; color:#fff; border:none; padding:10px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer;">ЧАТ</button>
+                    <button onclick="closeFriendInspect()" style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:10px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer;">НАЗАД</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+   
+    <script>
+        // Инициализация Firebase с твоими ключами и URL европейской базы данных!
+        const firebaseConfig = {
+            apiKey: "AIzaSyDT2TeUKx6vDv8cnt5XGWwvm0gULmNOh-I",
+            authDomain: "trindoc-26fb7.firebaseapp.com",
+            databaseURL: "https://trindoc-26fb7-default-rtdb.europe-west1.firebasedatabase.app/",
+            projectId: "trindoc-26fb7",
+            storageBucket: "trindoc-26fb7.firebasestorage.app",
+            messagingSenderId: "747632686457",
+            appId: "1:747632686457:web:5d5a019834d1d82008aba8",
+            measurementId: "G-370H9C580Z"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        // Переменная для хранения ID текущего сессионного юзера
+        let currentUserId = null;
+        let isLoginMode = false; // По умолчанию режим РЕГИСТРАЦИИ
+
+                // --- ЧАСТЬ 3: БЕЗОПАСНОСТЬ (АНТИЧИТ) И СЕТЕВАЯ АУТЕНТИФИКАЦИЯ ---
+
+        // Защищенное хранилище игровых ресурсов с контрольными суммами (хэшем) против ArtMoney / F12
+        let secureVault = {
+            _chips: 0,
+            _trinki: 0,
+            _hash: ""
+        };
+
+        // Генерация хэша для проверки целостности памяти устройства
+        function calculateMemorySignature(chips, trinki) {
+            let secretKey = "TRINDOC_ANTITECH_SECURE_SALT_2026";
+            let rawString = (chips * 3) + "_" + (trinki * 7) + "_" + secretKey;
+            
+            // Простейший быстрый хэш-алгоритм (аналог контрольной суммы)
+            let hash = 0;
+            for (let i = 0; i < rawString.length; i++) {
+                hash = (hash << 5) - hash + rawString.charCodeAt(i);
+                hash |= 0;
+            }
+            return hash.toString(16);
+        }
+
+        // Безопасная запись фишек и тринок в память
+        function setSecureResources(chips, trinki) {
+            secureVault._chips = chips;
+            secureVault._trinki = trinki;
+            secureVault._hash = calculateMemorySignature(chips, trinki);
+        }
+
+        // Безопасное чтение ресурсов с мгновенным триггером античита при подмене
+        function getSecureResources() {
+            let currentCheck = calculateMemorySignature(secureVault._chips, secureVault._trinki);
+            
+            if (currentCheck !== secureVault._hash) {
+                // ОБНАРУЖЕН ВЗЛОМ ПАМЯТИ ЧЕРЕЗ ARTMONEY / GAMEGUARDIAN!
+                triggerAntiCheatLockout();
+                return { chips: 0, trinki: 0, corrupted: true };
+            }
+            return { chips: secureVault._chips, trinki: secureVault._trinki, corrupted: false };
+        }
+
+        // Функция жесткой блокировки аккаунта читера
+        function triggerAntiCheatLockout() {
+            // Удаляем данные читера с сервера Firebase, чтобы он не зашел снова
+            if (currentUserId) {
+                database.ref('users/' + currentUserId).remove();
+                auth.currentUser.delete();
+            }
+            
+            // Выводим перманентный экран блокировки вместо игры
+            document.body.innerHTML = `
+                <div style="background:#1a0505; color:#ef4444; width:100vw; height:100vh; display:flex; flex-direction:column; justify-content:center; align-items:center; font-family:sans-serif; text-align:center; padding:20px; box-sizing:border-box;">
+                    <h1 style="font-size:36px; margin-bottom:10px;">🔴 АККАУНТ ЗАБЛОКИРОВАН</h1>
+                    <p style="color:#d8dee9; font-size:16px; max-width:400px; line-height:1.5;">Система Memory Tampering Shield зафиксировала стороннее вмешательство в память игры (ArtMoney/F12). Ваш профиль удален из базы данных TRINDOC.</p>
+                </div>
+            `;
+        }
+
+        // --- ЛОГИКА ОКНА АВТОРpatchИЗАЦИИ И РЕГИСТРАЦИИ (FIREBASE) ---
+        
+        // Переключение режимов: Регистрация <-> Вход
+        function toggleAuthMode(toLogin) {
+            isLoginMode = toLogin;
+            const fieldNick = document.getElementById('auth-nick');
+            const btnSubmit = document.getElementById('btn-auth-submit');
+            const toggleText = document.getElementById('auth-toggle-text');
+
+            if (isLoginMode) {
+                fieldNick.style.display = 'none'; // Никнейм при входе не нужен
+                btnSubmit.innerText = "НАЧАТЬ ИГРАТЬ";
+                toggleText.innerText = "Новый игрок? Зарегистрироваться";
+            } else {
+                fieldNick.style.display = 'block';
+                btnSubmit.innerText = "ЗАРЕГИСТРИРОВАТЬСЯ";
+                toggleText.innerText = "Уже есть аккаунт? Войти";
+            }
+        }
+
+        // Главный обработчик кнопки входа/регистрации
+        function processAuthAction() {
+            const fieldLogin = document.getElementById('auth-login');
+            const fieldPass = document.getElementById('auth-pass');
+            const fieldNick = document.getElementById('auth-nick');
+
+            let email = fieldLogin.value.trim();
+            let password = fieldPass.value.trim();
+            let nickname = fieldNick.value.trim();
+
+            // Если логин не в виде email, симулируем его для Firebase Auth
+            if (email && !email.includes('@')) {
+                email = email.toLowerCase() + "@trindoc.club";
+            }
+
+            // Валидация пустых полей с красным неоновым миганием
+            if (!email || !password || (!isLoginMode && !nickname)) {
+                [fieldLogin, fieldPass, fieldNick].forEach(f => {
+                    if (f.style.display !== 'none' && !f.value.trim()) {
+                        f.classList.remove('input-error-blink');
+                        void f.offsetWidth; // Триггер сброса анимации
+                        f.classList.add('input-error-blink');
+                    }
+                });
+                return;
+            }
+
+            if (password.length < 6) {
+                fieldPass.classList.add('input-error-blink');
+                fieldPass.value = "";
+                fieldPass.placeholder = "ПАРОЛЬ ОТ 6 СИМВОЛОВ!";
+                return;
+            }
+
+            if (isLoginMode) {
+                // --- РЕЖИМ ВХОДА ---
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        currentUserId = userCredential.user.uid;
+                        loadUserProfileFromCloud();
+                    })
+                    .catch((error) => {
+                        fieldLogin.classList.add('input-error-blink');
+                        fieldPass.classList.add('input-error-blink');
+                        printAuthError(error.code);
+                    });
+            } else {
+                // --- РЕЖИМ РЕГИСТРАЦИИ ---
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        currentUserId = userCredential.user.uid;
+                        
+                        // Инициализируем чистую структуру нового игрока в Realtime Database
+                        let defaultProfile = {
+                            nickname: nickname,
+                            chips: 1500,
+                            trinki: 50,
+                            activeStyle: "default",
+                            activeShirt: "default",
+                            ownedStyles: ["default"],
+                            ownedShirts: ["default"],
+                            inventory: { cheat: 0, return: 0, cancel: 0 },
+                            friendsList: "" // Строка формата "friend1,friend2"
+                        };
+
+                        database.ref('users/' + currentUserId).set(defaultProfile, (error) => {
+                            if (!error) loadUserProfileFromCloud();
+                        });
+                    })
+                    .catch((error) => {
+                        fieldLogin.classList.add('input-error-blink');
+                        printAuthError(error.code);
+                    });
+            }
+        }
+
+        // Перевод системных кодов ошибок для красивого вывода в инпуты
+        function printAuthError(code) {
+            const fieldLogin = document.getElementById('auth-login');
+            if (code === "auth/user-not-found" || code === "auth/wrong-password") {
+                fieldLogin.value = ""; fieldLogin.placeholder = "НЕВЕРНЫЙ ЛОГИН ИЛИ ПАРОЛЬ";
+            } else if (code === "auth/email-already-in-use") {
+                fieldLogin.value = ""; fieldLogin.placeholder = "ЛОГИН УЖЕ ЗАНЯТ";
+            }
+        }
+
+                // --- ЧАСТЬ 4: СИНХРОНИЗАЦИЯ С ОБЛАКОМ И МЕНЕДЖЕР ВКЛАДОК ---
+
+        // Переменная локального кэша данных (чтобы не спамить запросами к базе)
+        let localUser = {
+            nick: "Загрузка...",
+            ownedStyles: ["default"],
+            ownedShirts: ["default"],
+            inventory: { cheat: 0, return: 0, cancel: 0 },
+            friends: []
+        };
+
+        // Загрузка всей структуры профиля из Firebase Realtime Database
+        function loadUserProfileFromCloud() {
+            if (!currentUserId) return;
+
+            database.ref('users/' + currentUserId).once('value').then((snapshot) => {
+                let data = snapshot.val();
+                if (data) {
+                    localUser.nick = data.nickname;
+                    localUser.ownedStyles = data.ownedStyles || ["default"];
+                    localUser.ownedShirts = data.ownedShirts || ["default"];
+                    localUser.inventory = data.inventory || { cheat: 0, return: 0, cancel: 0 };
+                    
+                    // Загружаем друзей из строки формата CSV
+                    let friendsStr = data.friendsList || "";
+                    localUser.friends = friendsStr ? friendsStr.split(',').map(f => {
+                        let parts = f.split(':');
+                        return { nick: parts[0], level: parseInt(parts[1]) || 1, shirt: parts[2] || "default", giftsCount: parseInt(parts[3]) || 0 };
+                    }) : [];
+
+                    // Записываем фишки и Тринки в защищенную античитом ячейку памяти!
+                    setSecureResources(data.chips || 1500, data.trinki || 50);
+
+                    // Прогружаем никнейм на экранах лобби
+                    document.getElementById('label-username').innerText = localUser.nick;
+                    document.getElementById('input-change-nick').value = localUser.nick;
+
+                    // Переключаем интерфейс на экран смартфона
+                    document.getElementById('screen-auth').style.display = 'none';
+                    document.getElementById('screen-dashboard').style.display = 'flex';
+
+                    // Перерисовываем кошельки и списки
+                    refreshUiWalletsAndStyles();
+                    rebuildStoreCards();
+                    rebuildProfileSubTabs();
+                    rebuildFriendsListView();
+                }
+            });
+        }
+
+        // Автоматическое сохранение измененных данных обратно в Firebase Realtime Database
+        function saveUserProfileToCloud() {
+            if (!currentUserId) return;
+
+            let res = getSecureResources();
+            if (res.corrupted) return; // Если память взломана, сохранение блокируется античитом
+
+            // Превращаем массив друзей обратно в компактную строку для базы данных
+            let friendsStr = localUser.friends.map(f => `${f.nick}:${f.level}:${f.shirt}:${f.giftsCount}`).join(',');
+
+            let updatedData = {
+                nickname: localUser.nick,
+                chips: res.chips,
+                trinki: res.trinki,
+                ownedStyles: localUser.ownedStyles,
+                ownedShirts: localUser.ownedShirts,
+                inventory: localUser.inventory,
+                friendsList: friendsStr
+            };
+
+            database.ref('users/' + currentUserId).update(updatedData);
+        }
+
+        // Обновление кошельков в HUD с проверкой античита
+        function refreshUiWalletsAndStyles() {
+            let res = getSecureResources();
+            if (res.corrupted) return;
+
+            document.getElementById('val-chips').innerText = res.chips;
+            document.getElementById('val-trinki').innerText = res.trinki;
+
+            // Применяем купленный цвет/стиль никнейма в шапке
+            let label = document.getElementById('label-username');
+            label.className = "hud-username";
+            
+            // Находим какой класс сейчас активен в базе (ищем по ownedStyles)
+            let activeStyle = "default";
+            storeItems.nicks.forEach(styleItem => {
+                if (localUser.ownedStyles.includes(styleItem.styleClass) && styleItem.isActive) {
+                    activeStyle = styleItem.styleClass;
+                }
+            });
+            
+            if (activeStyle !== "default") {
+                label.classList.add(activeStyle);
+            }
+        }
+
+        // Переключение пяти главных верхних вкладок вертикального меню
+        function switchMainTab(tabId) {
+            document.querySelectorAll('.view-panel').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active-tab'));
+
+            // Закрываем окно приватного чата, если переходим на другие вкладки
+            document.getElementById('friends-main-block').style.display = 'flex';
+            document.getElementById('private-chat-block').style.display = 'none';
+
+            let targetPanel = document.getElementById(tabId);
+            if (targetPanel) {
+                if (tabId === 'tab-store' || tabId === 'tab-profile') {
+                    targetPanel.style.display = 'flex'; // Для бокового меню слева
+                } else {
+                    targetPanel.style.display = 'block';
+                }
+            }
+            document.getElementById('tab-btn-' + tabId.replace('tab-', '')).classList.add('active-tab');
+        }
+
+        // Переключение категорий Магазина (Боковое меню)
+        function switchStoreTab(viewId) {
+            document.querySelectorAll('.store-view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.store-sub-tab').forEach(b => b.classList.remove('active-sub'));
+
+            document.getElementById(viewId).style.display = 'block';
+            let key = 's-btn-' + viewId.replace('store-', '').replace('s', '');
+            document.getElementById(key).classList.add('active-sub');
+        }
+
+        // Переключение категорий Профиля (Боковое меню)
+        function switchProfileTab(viewId) {
+            document.querySelectorAll('.profile-view').forEach(v => v.style.display = 'none');
+            document.querySelectorAll('.profile-sub-tab').forEach(b => b.classList.remove('active-sub'));
+
+            document.getElementById(viewId).style.display = 'block';
+            let map = { 'profile-main': 'p-btn-main', 'profile-my-nicks': 'p-btn-nicks', 'profile-my-shirts': 'p-btn-shirts', 'profile-achievements': 'p-btn-ach', 'profile-gifts': 'p-btn-gifts' };
+            document.getElementById(map[viewId]).classList.add('active-sub');
+        }
+
+                // --- ЧАСТЬ 5: ЛОГИКА СНАБЖЕНИЯ И ОТРИСОВКИ МАГАЗИНА ---
+
+        // Генерация карточек товаров на Черном рынке
+        function rebuildStoreCards() {
+            // 1. Отрисовка Рубашек Карт (Превью Туза лицевой стороной)
+            const shirtsGrid = document.getElementById('grid-store-shirts');
+            shirtsGrid.innerHTML = '';
+            storeItems.shirts.forEach(item => {
+                let isOwned = localUser.ownedShirts.includes(item.id);
+                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
+                shirtsGrid.innerHTML += `
+                    <div class="market-card">
+                        <div style="display:flex; align-items:center; gap:12px; text-align:left;">
+                            <div style="width:36px; height:50px; background:#fff; border-radius:4px; display:flex; justify-content:center; align-items:center; font-size:20px; color:#111; font-weight:bold; box-shadow:0 3px 6px rgba(0,0,0,0.4);">${item.preview}</div>
+                            <div>
+                                <div class="card-name" style="font-size:13px;">${item.name}</div>
+                                <div class="card-cost" style="font-size:12px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'};">${isOwned ? 'АКТИВИРОВАНО' : costText}</div>
+                            </div>
+                        </div>
+                        <button class="buy-btn" onclick="executeStoreTransaction('shirt', '${item.id}', ${item.cost}, '${item.currency}')" ${isOwned ? 'disabled style="opacity:0.3;"' : ''}>КУПИТЬ</button>
+                    </div>
+                `;
+            });
+
+            // 2. Отрисовка Оформления Ника (Строчки цветов и Премиум-рамки)
+            const nicksGrid = document.getElementById('grid-store-nicks');
+            nicksGrid.innerHTML = '';
+            storeItems.nicks.forEach(item => {
+                let isOwned = localUser.ownedStyles.includes(item.styleClass);
+                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
+                nicksGrid.innerHTML += `
+                    <div class="market-card">
+                        <div style="text-align:left;">
+                            <div class="card-name ${item.styleClass}" style="font-size:15px; margin-bottom:2px; display:inline-block;">${localUser.nick}</div>
+                            <div style="font-size:11px; color:#4c566a; font-weight:bold;">${item.name}</div>
+                            <div class="card-cost" style="font-size:12px; font-weight:bold; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; margin-top:4px;">${isOwned ? 'АКТИВИРОВАНО' : costText}</div>
+                        </div>
+                        <button class="buy-btn" onclick="executeStoreTransaction('nick', '${item.styleClass}', ${item.cost}, '${item.currency}')" ${isOwned ? 'disabled style="opacity:0.3;"' : ''}>КУПИТЬ</button>
+                    </div>
+                `;
+            });
+
+            // 3. Отрисовка скупаемых Привилегий в Количествах (Накапливаются)
+            const privsGrid = document.getElementById('grid-store-privs');
+            privsGrid.innerHTML = '';
+            storeItems.privs.forEach(item => {
+                let ownedCount = localUser.inventory[item.id] || 0;
+                let costText = item.currency === 'cash' ? `${item.cost} фишек` : `${item.cost} ТРИНОК`;
+                privsGrid.innerHTML += `
+                    <div class="market-card" style="flex-direction:column; align-items:stretch; text-align:left; gap:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div class="card-name" style="color:#81a1c1; font-size:14px;">${item.name}</div>
+                            <div style="background:#232834; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; color:#fff;">У ВАС: ${ownedCount} шт</div>
+                        </div>
+                        <div style="font-size:11px; color:#4c566a; line-height:1.3;">${item.desc}</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+                            <div class="card-cost" style="font-size:12px; color:${item.currency==='cash'?'#10b981':'#ecc94b'}; font-weight:bold;">${costText}</div>
+                            <button class="buy-btn" style="background:#3b82f6; color:#fff; border:none;" onclick="executeStoreTransaction('priv', '${item.id}', ${item.cost}, '${item.currency}')">ЗАКУПИТЬ</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Логика проведения списывания баланса с защитой Античита
+        function executeStoreTransaction(category, itemId, cost, currencyType) {
+            let res = getSecureResources();
+            if (res.corrupted) return; // Срабатывает триггер блокировки читера
+
+            if (currencyType === 'cash') {
+                if (res.chips < cost) return;
+                res.chips -= cost;
+            } else {
+                if (res.trinki < cost) return;
+                res.trinki -= cost;
+            }
+
+            // Начисление имущества по категориям
+            if (category === 'shirt') {
+                localUser.ownedShirts.push(itemId);
+            } else if (category === 'nick') {
+                localUser.ownedStyles.push(itemId);
+            } else if (category === 'priv') {
+                localUser.inventory[itemId] = (localUser.inventory[itemId] || 0) + 1;
+            }
+
+            // Перезаписываем хэшированную локальную память
+            setSecureResources(res.chips, res.trinki);
+            
+            // Запускаем выгрузку защищенного сейва в Firebase Realtime Database
+            saveUserProfileToCloud();
+            
+            // Обновляем визуал интерфейса
+            refreshUiWalletsAndStyles();
+            rebuildStoreCards();
+            rebuildProfileSubTabs();
+        }
+
+        // Начисление бесплатных тринок за "Рекламу"
+        function triggerAdReward() {
+            let res = getSecureResources();
+            if (res.corrupted) return;
+
+            setSecureResources(res.chips, res.trinki + 50);
+            saveUserProfileToCloud();
+            refreshUiWalletsAndStyles();
+            rebuildStoreCards();
+            rebuildProfileSubTabs();
+        }
+
+                // --- ЧАСТЬ 6: ЛОГИКА КАБИНЕТА И СТРОГИХ ДОСТИЖЕНИЙ ---
+
+        // Генерация списков внутри бокового меню Личного кабинета
+        function rebuildProfileSubTabs() {
+            // 1. Отрисовка купленных СТИЛЕЙ никнейма
+            const nicksBox = document.getElementById('list-my-nicks');
+            nicksBox.innerHTML = '';
+            storeItems.nicks.forEach(styleItem => {
+                let hasStyle = localUser.ownedStyles.includes(styleItem.styleClass);
+                if (hasStyle) {
+                    let isActive = styleItem.isActive || false;
+                    nicksBox.innerHTML += `
+                        <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div class="hud-username ${styleItem.styleClass}" style="font-size:14px; font-weight:bold;">${localUser.nick}</div>
+                                <div style="font-size:11px; color:#4c566a; margin-top:2px;">${styleItem.name}</div>
+                            </div>
+                            <button class="buy-btn" onclick="activateNickStylePreset('${styleItem.styleClass}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'АКТИВЕН' : 'ВКЛЮЧИТЬ'}</button>
+                        </div>
+                    `;
+                }
+            });
+
+            // 2. Отрисовка купленных РУБАШЕК карт в Гардеробе
+            const shirtsBox = document.getElementById('list-my-shirts');
+            shirtsBox.innerHTML = '';
+            localUser.ownedShirts.forEach(shirtId => {
+                let isActive = localUser.activeShirt === shirtId;
+                let data = storeItems.shirts.find(s => s.id === shirtId) || { name: "Классическая рубашка", preview: "🃏" };
+                shirtsBox.innerHTML += `
+                    <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="width:26px; height:36px; background:#fff; border-radius:3px; display:flex; justify-content:center; align-items:center; font-size:16px; color:#111; font-weight:bold;">${data.preview}</div>
+                            <div style="font-size:12px; font-weight:bold;">${data.name}</div>
+                        </div>
+                        <button class="buy-btn" onclick="activateCardShirtPreset('${shirtId}')" ${isActive ? 'disabled style="opacity:0.3;"' : ''}>${isActive ? 'НАДЕТА' : 'НАДЕТЬ'}</button>
+                    </div>
+                `;
+            });
+
+            // 3. Строгий наградной Зал Славы (Медали за достижения)
+            const achBox = document.getElementById('list-achievements');
+            achBox.innerHTML = '';
+            achievementsList.forEach(ach => {
+                achBox.innerHTML += `
+                    <div style="background:#111216; border:1px solid ${ach.done ? '#4c566a' : '#282c37'}; padding:12px; border-radius:8px; display:flex; align-items:center; gap:12px; opacity:${ach.done ? '1' : '0.45'};">
+                        <div style="width:32px; height:32px; border:2px solid ${ach.done ? '#ecc94b' : '#4c566a'}; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:13px; font-weight:bold; color:${ach.done ? '#ecc94b' : '#4c566a'}; background:rgba(0,0,0,0.3);">M</div>
+                        <div style="text-align:left;">
+                            <div style="font-weight:bold; font-size:12px; color:${ach.done ? '#fff' : '#a0aec0'}; letter-spacing:0.3px;">${ach.title}</div>
+                            <div style="font-size:11px; color:#4c566a; margin-top:2px; line-height:1.2;">${ach.desc}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Логика активации кастомизации имени
+        function activateNickStylePreset(selectedStyleClass) {
+            // Сбрасываем флаги активности во всей базе стилей
+            storeItems.nicks.forEach(item => {
+                item.isActive = (item.styleClass === selectedStyleClass);
+            });
+
+            // Если выбрали дефолтный — сбрасываем в строку
+            if (selectedStyleClass === 'default') {
+                localUser.ownedStyles = ['default'];
+            } else {
+                // Оставляем только дефолт и текущий активный, чтобы не путать сервер
+                localUser.ownedStyles = ['default', selectedStyleClass];
+            }
+
+            saveUserProfileToCloud();
+            refreshUiWalletsAndStyles();
+            rebuildProfileSubTabs();
+            rebuildStoreCards();
+        }
+
+        function activateCardShirtPreset(shirtId) {
+            localUser.activeShirt = shirtId;
+            saveUserProfileToCloud();
+            rebuildProfileSubTabs();
+        }
+
+        // Изменение никнейма в поле Кабинета
+        function triggerChangeNick() {
+            const input = document.getElementById('input-change-nick');
+            let txt = input.value.trim();
+            if (txt !== "" && txt !== localUser.nick) {
+                localUser.nick = txt;
+                
+                // Перезаписываем и пушим в облако Firebase
+                saveUserProfileToCloud();
+                
+                refreshUiWalletsAndStyles();
+                rebuildProfileSubTabs();
+                rebuildStoreCards();
+            }
+        }
+
+                // --- ЧАСТЬ 7: ЛОГИКА ДРУЗЕЙ, ИНСПЕКЦИИ И ПОДАРКОВ ---
+
+        // Перерисовка списка контактов во вкладке «Друзья»
+        function rebuildFriendsListView() {
+            const listContainer = document.getElementById('list-friends-box');
+            listContainer.innerHTML = '';
+
+            if (localUser.friends.length === 0) {
+                listContainer.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:15px 0;">У вас пока нет добавленных друзей</div>`;
+                return;
+            }
+
+            localUser.friends.forEach((friend, idx) => {
+                let styleClassAttr = friend.level >= 20 ? 'class="style-vip-snake"' : (friend.level >= 10 ? 'class="style-green"' : 'style="color:#fff; font-weight:bold;"');
+                
+                listContainer.innerHTML += `
+                    <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="width:32px; height:32px; background:#4c566a; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:14px;">👤</div>
+                            <div style="text-align:left;">
+                                <span ${styleClassAttr}>${friend.nick}</span>
+                                <div style="font-size:11px; color:#4c566a;">Уровень: ${friend.level}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="buy-btn" onclick="openFriendInspect(${idx})" style="background:#282c37; border-color:#3e4452; padding:6px 10px;">ОБЗОР</button>
+                            <button onclick="removeFriendFromList(${idx})" style="background:#bf616a; color:#fff; border:none; padding:6px 10px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer;">×</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Поиск и добавление нового друга по никнейму
+        function triggerSearchFriend() {
+            const input = document.getElementById('input-search-friend');
+            let query = input.value.trim();
+            if (!query) return;
+
+            if (query.toLowerCase() === localUser.nick.toLowerCase()) {
+                input.value = '';
+                return;
+            }
+
+            let isAlreadyFriend = localUser.friends.some(f => f.nick.toLowerCase() === query.toLowerCase());
+            if (!isAlreadyFriend) {
+                // Симулируем добавление реального пользователя из базы
+                let newFriend = {
+                    nick: query,
+                    level: Math.floor(Math.random() * 22) + 2,
+                    shirt: Math.random() > 0.5 ? "Империал" : "default",
+                    giftsCount: Math.floor(Math.random() * 3)
+                };
+                localUser.friends.push(newFriend);
+                saveUserProfileToCloud();
+                rebuildFriendsListView();
+                input.value = '';
+                openFriendInspect(localUser.friends.length - 1);
+            }
+        }
+
+        // Удаление друга из списка (кнопка-крестик)
+        function removeFriendFromList(index) {
+            localUser.friends.splice(index, 1);
+            saveUserProfileToCloud();
+            rebuildFriendsListView();
+        }
+
+        // Открытие всплывающей визитки инспектирования друга
+        function openFriendInspect(index) {
+            selectedFriend = localUser.friends[index];
+            if (!selectedFriend) return;
+
+            const nameLabel = document.getElementById('inspect-username');
+            nameLabel.innerText = selectedFriend.nick;
+            nameLabel.className = "";
+
+            if (selectedFriend.level >= 20) nameLabel.className = "style-vip-snake";
+            else if (selectedFriend.level >= 10) nameLabel.className = "style-green";
+
+            document.getElementById('inspect-level').innerText = selectedFriend.level;
+            document.getElementById('inspect-shirt').innerText = selectedFriend.shirt === 'default' ? 'Классическая' : selectedFriend.shirt;
+            document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount;
+
+            document.getElementById('modal-friend-inspect').style.display = 'flex';
+        }
+
+        function closeFriendInspect() {
+            document.getElementById('modal-friend-inspect').style.display = 'none';
+            selectedFriend = null;
+        }
+
+        // Логика покупки и отправки подарка другу
+        function executeSendGift() {
+            if (!selectedFriend) return;
+
+            let res = getSecureResources();
+            if (res.corrupted) return;
+
+            const gift = document.getElementById('select-gift-type').value;
+
+            if (gift === 'gift_cigar') {
+                if (res.chips < 150) return;
+                res.chips -= 150;
+            } else if (gift === 'gift_drink') {
+                if (res.trinki < 10) return;
+                res.trinki -= 10;
+            }
+
+            // Начисляем подарок на полку друга
+            selectedFriend.giftsCount++;
+            document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount;
+
+            // Запись в защищенный кэш и пуш на сервера Firebase
+            setSecureResources(res.chips, res.trinki);
+            saveUserProfileToCloud();
+
+            // Обновляем кошельки HUD
+            refreshUiWalletsAndStyles();
+            rebuildStoreCards();
+        }
+
+                // --- ЧАСТЬ 8: ЛОГИКА РАБОЧЕГО ПРИВАТНОГО ЧАТА ---
+
+        // Открытие экрана сообщений с конкретным другом
+        function openFriendPrivateChat() {
+            if (!selectedFriend) return;
+            
+            let friendNick = selectedFriend.nick;
+            closeFriendInspect();
+
+            // Скрываем общий интерфейс друзей, разворачиваем окно чата
+            document.getElementById('friends-main-block').style.display = 'none';
+            document.getElementById('private-chat-block').style.display = 'flex';
+            
+            document.getElementById('priv-chat-title').innerText = `ДИАЛОГ: ${friendNick}`;
+            
+            // Очищаем и заполняем историю (симулируем приветствие от ИИ-друга)
+            const chatBox = document.getElementById('priv-chat-messages');
+            chatBox.innerHTML = `
+                <div style="color:#4c566a; text-align:center; font-size:11px; margin-bottom:5px;">Безопасное соединение установлено</div>
+                <div><strong style="color:#81a1c1;">${friendNick}:</strong> Привет! Готов погонять сегодня в TRINDOC? Что там по ставкам?</div>
+            `;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Закрытие чата и возврат к списку контактов
+        function closePrivateChat() {
+            document.getElementById('private-chat-block').style.display = 'none';
+            document.getElementById('friends-main-block').style.display = 'flex';
+            rebuildFriendsListView();
+        }
+
+        // Отправка текстового сообщения другу
+        function sendPrivateMessage() {
+            const input = document.getElementById('priv-chat-input');
+            let text = input.value.trim();
+            if (!text || !selectedFriend) return;
+
+            // Выводим сообщение игрока на экран
+            const chatBox = document.getElementById('priv-chat-messages');
+            let userMsg = document.createElement('div');
+            userMsg.innerHTML = `<strong style="color:#10b981;">Вы:</strong> ${text}`;
+            chatBox.appendChild(userMsg);
+            
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
+            // Симулируем мгновенный автоматический ответ друга
+            setTimeout(() => {
+                let friendNick = selectedFriend.nick;
+                let reply = document.createElement('div');
+                
+                // Рандомные ответы для живого общения
+                let lines = [
+                    "Хах, ладно! Погнали за стол, проверим твои нервы вслепую.",
+                    "Я сейчас занят торговлей в другой комнате, заскочу позже!",
+                    "Ого, звучит солидно. Пойду закуплю Рентген-взлом в магазине.",
+                    "Удачи на кону! Только не слей все фишки Марии."
+                ];
+                let randomLine = lines[Math.floor(Math.random() * lines.length)];
+                
+                reply.innerHTML = `<strong style="color:#81a1c1;">${friendNick}:</strong> ${randomLine}`;
+                chatBox.appendChild(reply);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 1000);
+        }
+
+        // Слушаем клавишу Enter внутри поля личных сообщений
+        document.getElementById('priv-chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendPrivateMessage();
+        });
+
+                // --- ЧАСТЬ 9: ЛОГИКА ЗАПУСКА И СИНХРОНИЗАЦИИ ИГРОВОЙ КОМНАТЫ ---
+
+        // Переход из главного меню за игровой стол (Триггер кнопки лобби)
+        function requestStartGame() {
+            let res = getSecureResources();
+            if (res.corrupted) return; // Если читер — блокируем
+
+            // Считываем настройки стола, выбранные игроком
+            match.mode = document.getElementById('select-mode').value;
+            match.ante = parseInt(document.getElementById('input-ante').value) || 50;
+
+            if (res.chips < match.ante) {
+                alert(`У вас недостаточно фишек для этого стола! Минимальный взнос: ${match.ante}`);
+                return;
+            }
+
+            // Скрываем панель лобби, открываем экран вертикального матча
+            document.getElementById('screen-dashboard').style.display = 'none';
+            document.getElementById('screen-match').style.display = 'flex';
+            
+            // Задаем никнейм игрока и переносим неоновые VIP-стили, если они куплены
+            document.getElementById('m-label-username').innerText = localUser.nick;
+            let pBoxLabel = document.getElementById('m-label-username');
+            pBoxLabel.className = "hud-username";
+            
+            // Проверяем активный стиль
+            let activeStyleClass = "default";
+            storeItems.nicks.forEach(styleItem => {
+                if (localUser.ownedStyles.includes(styleItem.styleClass) && styleItem.isActive) {
+                    activeStyleClass = styleItem.styleClass;
+                }
+            });
+            if (activeStyleClass !== "default") {
+                pBoxLabel.classList.add(activeStyleClass);
+            }
+
+            // Выгружаем фишки на сукно стола
+            document.getElementById('m-chips-player').innerText = res.chips;
+            document.getElementById('m-chips-bot1').innerText = 1500;
+            document.getElementById('m-chips-bot2').innerText = 1500;
+
+            // Обнуляем банк, очищаем старые карты и бабблы
+            match.pot = 0;
+            match.bets = { player: 0, bot1: 0, bot2: 0 };
+            match.activeRound = false;
+
+            // Чистим старый лог и выводим приветствие
+            document.getElementById('match-chat-messages').innerHTML = '';
+            appendRoomSystemMessage("Вы зашли в комнату #77. Нажмите «РАЗДАЧА» для старта раунда.");
+            
+            // Блокируем кнопки ходов, пока не нажата «Раздача»
+            document.getElementById('m-btn-deal').disabled = false;
+            document.getElementById('m-btn-look').disabled = true;
+            document.getElementById('m-btn-check').disabled = true;
+            document.getElementById('m-btn-raise').disabled = true;
+            document.getElementById('m-btn-fold').disabled = true;
+
+            renderMatchCardsGraphics();
+            syncMatchUiAndBubbles();
+        }
+
+        // Кнопка принудительного выхода со стола обратно в лобби меню
+        function exitFromMatchToLobby() {
+            if (match.activeRound) {
+                // Если сбегаешь прямо во время раздачи — автоматически засчитывается ПАС (слив ставки)
+                actionPlayerMove('fold');
+            }
+
+            // Переключаем экраны телефона назад
+            document.getElementById('screen-match').style.display = 'none';
+            document.getElementById('screen-dashboard').style.display = 'flex';
+            
+            // Обновляем кошельки в HUD
+            refreshUiWalletsAndStyles();
+        }
+
+                // --- ЧАСТЬ 10: СТАДИИ РАЗДАЧИ И ВЕРТИКАЛЬНЫЙ РЕНДЕРИНГ КАРТ ---
+
+        // Запуск новой раздачи карт за столом TRINDOC
+        function startHandLogic() {
+            if (match.activeRound) return;
+
+            let res = getSecureResources();
+            if (res.corrupted) return; // Проверка античита
+
+            match.activeRound = true;
+            match.roundStep = 0;
+            match.hasLooked = false;
+            match.currentTurn = 'player';
+            match.currentBet = match.ante;
+
+            // Проверяем живых участников по балансу фишек за столом
+            match.folded.player = false;
+            match.folded.bot1 = parseInt(document.getElementById('m-chips-bot1').innerText) <= 0;
+            match.folded.bot2 = parseInt(document.getElementById('m-chips-bot2').innerText) <= 0;
+
+            // Списываем обязательное анте в банк со всех живых участников
+            let pChips = parseInt(document.getElementById('m-chips-player').innerText);
+            let b1Chips = parseInt(document.getElementById('m-chips-bot1').innerText);
+            let b2Chips = parseInt(document.getElementById('m-chips-bot2').innerText);
+
+            if (!match.folded.player) { pChips -= match.ante; match.bets.player = match.ante; }
+            if (!match.folded.bot1) { b1Chips -= match.ante; match.bets.bot1 = match.ante; }
+            if (!match.folded.bot2) { b2Chips -= match.ante; match.bets.bot2 = match.ante; }
+
+            document.getElementById('m-chips-player').innerText = pChips;
+            document.getElementById('m-chips-bot1').innerText = b1Chips;
+            document.getElementById('m-chips-bot2').innerText = b2Chips;
+
+            // Считаем стартовый банк (Пот)
+            match.pot = (!match.folded.player ? match.ante : 0) + 
+                        (!match.folded.bot1 ? match.ante : 0) + 
+                        (!match.folded.bot2 ? match.ante : 0);
+
+            // Раздача Раунда 1: строго по 2 карты каждому в руку (Пре-флоп)
+            match.hands.player = [pullCardFromDeck(), pullCardFromDeck()];
+            match.hands.bot1 = [pullCardFromDeck(), pullCardFromDeck()];
+            match.hands.bot2 = [pullCardFromDeck(), pullCardFromDeck()];
+
+            // Интерактивное переключение кнопок управления
+            document.getElementById('m-btn-deal').disabled = true;
+            document.getElementById('m-btn-look').disabled = (match.mode === 'classic');
+            document.getElementById('m-btn-check').disabled = false;
+            document.getElementById('m-btn-raise').disabled = false;
+            document.getElementById('m-btn-fold').disabled = false;
+
+            if (match.mode === 'classic') {
+                match.hasLooked = true; // В классическом режиме карты открыты сразу
+            }
+
+            renderMatchCardsGraphics();
+            syncMatchUiAndBubbles();
+
+            if (match.mode === 'blind') {
+                appendRoomSystemMessage("Раунд 1. Карты выданы. Вы ИГРАЕТЕ ВСЛЕПУЮ. Боты напуганы!");
+            } else {
+                appendRoomSystemMessage("Раунд 1. Карты розданы в открытую. Ваш ход.");
+            }
+        }
+
+        // Кнопка «Посмотреть карты» — выход из режима «Вслепую»
+        function actionLookHand() {
+            if (!match.activeRound || match.hasLooked) return;
+            match.hasLooked = true;
+            document.getElementById('m-btn-look').disabled = true;
+            
+            renderMatchCardsGraphics();
+            syncMatchUiAndBubbles();
+            
+            let currentScore = calculateHandScore(match.hands.player);
+            appendRoomSystemMessage(`Вы посмотрели свои карты. Текущая сила масти: ${currentScore} очков.`);
+        }
+
+        // Отрисовка геометрии карт на сером сукне стола
+        function renderMatchCardsGraphics() {
+            // 1. Отрисовка карт игрока (крупные под хват пальцем)
+            const pContainer = document.getElementById('m-cards-player');
+            pContainer.innerHTML = '';
+            match.hands.player.forEach(c => {
+                let div = document.createElement('div');
+                if (!match.hasLooked) {
+                    // Механика «Вслепую» — рубашка карт (с учетом купленной темы в магазине)
+                    div.className = 'playing-card card-back';
+                    if (localUser.activeShirt === 'shirt_blue') div.style.backgroundColor = '#1e3a8a';
+                    if (localUser.activeShirt === 'shirt_purple') div.style.backgroundColor = '#581c87';
+                } else {
+                    // Открытые карты
+                    div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                    div.innerHTML = `<div>${c.rank}</div><div class="card-suit-center">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
+                }
+                pContainer.appendChild(div);
+            });
+
+            // 2. Отрисовка карт ботов (всегда закрыты до финального вскрытия)
+            renderSpecificBotGraphics('bot1', false);
+            renderSpecificBotGraphics('bot2', false);
+        }
+
+        // Отрисовка карт для конкретного ИИ-бота
+        function renderSpecificBotGraphics(botId, isOpen = false) {
+            const container = document.getElementById(`m-cards-${botId}`);
+            container.innerHTML = '';
+
+            if (match.folded[botId]) {
+                container.innerHTML = "<span style='color:#bf616a; font-size:11px; font-weight:bold; text-transform:uppercase;'>ПАС</span>";
+                return;
+            }
+
+            match.hands[botId].forEach(c => {
+                let div = document.createElement('div');
+                if (!isOpen) {
+                    div.className = 'playing-card card-back';
+                    div.style.width = '35px'; div.style.height = '50px'; // Меньший компактный размер для ботов
+                } else {
+                    div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                    div.style.width = '35px'; div.style.height = '50px'; div.style.fontSize = '11px'; div.style.padding = '4px';
+                    div.innerHTML = `<div>${c.rank}</div><div style="font-size:14px; align-self:center;">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
+                }
+                container.appendChild(div);
+            });
+        }
+
+        // Синхронизация фишек, пота и неонового статуса «Вслепую» над аватаркой
+        function syncMatchUiAndBubbles() {
+            document.getElementById('match-pot-val').innerText = match.pot;
+
+            let pBox = document.getElementById('m-profile-box');
+            if (match.activeRound && !match.hasLooked && match.mode === 'blind') {
+                // Если игрок темнит — включаем золотую рамку со статусом «Вслепую»
+                pBox.style.borderColor = '#ecc94b';
+                pBox.style.boxShadow = '0 0 12px rgba(236, 201, 75, 0.4)';
+                document.getElementById('m-label-username').innerText = `${localUser.nick} [ВСЛЕПУЮ]`;
+            } else {
+                pBox.style.borderColor = '#2d313f';
+                pBox.style.boxShadow = 'none';
+                document.getElementById('m-label-username').innerText = localUser.nick;
+                
+                let pLabel = document.getElementById('m-label-username');
+                pLabel.className = "hud-username";
+                
+                // Проверяем активный стиль
+                let activeStyleClass = "default";
+                storeItems.nicks.forEach(styleItem => {
+                    if (localUser.ownedStyles.includes(styleItem.styleClass) && styleItem.isActive) {
+                        activeStyleClass = styleItem.styleClass;
+                    }
+                });
+                if (activeStyleClass !== "default") {
+                    pLabel.classList.add(activeStyleClass);
+                }
+            }
+
+            toggleTableBubble('m-bubble-player', match.bets.player, match.folded.player);
+            toggleTableBubble('m-bubble-bot1', match.bets.bot1, match.folded.bot1);
+            toggleTableBubble('m-bubble-bot2', match.bets.bot2, match.folded.bot2);
+        }
+
+                // --- ЧАСТЬ 11: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
+
+        // Обработка действий игрока на кнопках (Чек, Рейз, Пас)
+        function actionPlayerMove(actionType) {
+            if (match.currentTurn !== 'player' || !match.activeRound) return;
+
+            let pChips = parseInt(document.getElementById('m-chips-player').innerText);
+
+            if (actionType === 'fold') {
+                match.folded.player = true;
+                appendRoomSystemMessage("Вы сбросили карты в пас. Раунд проигран.");
+                proceedToNextPhaseOrShowdown();
+                return;
+            }
+
+            if (actionType === 'raise') {
+                if (pChips < 100) return;
+                pChips -= 100;
+                match.bets.player += 100;
+                match.pot += 100;
+                match.currentBet = match.bets.player;
+                appendRoomSystemMessage(`Вы подняли ставку до ${match.currentBet}. Ход Алексея.`);
+            } else {
+                // Чек или Колл (сравнять текущую ставку стола)
+                let diff = match.currentBet - match.bets.player;
+                if (pChips < diff) return;
+                pChips -= diff;
+                match.bets.player += diff;
+                match.pot += diff;
+                appendRoomSystemMessage(diff > 0 ? `Вы уравняли ставку (${match.currentBet}). Ход Алексея.` : "Вы сказали Чек. Ход Алексея.");
+            }
+
+            document.getElementById('m-chips-player').innerText = pChips;
+            syncMatchUiAndBubbles();
+            
+            match.currentTurn = 'bot1';
+            setTimeout(runBot1AIBehavior, 1000);
+        }
+
+        // Логика Алексея [Скала]
+        function runBot1AIBehavior() {
+            if (match.folded.bot1) {
+                match.currentTurn = 'bot2';
+                setTimeout(runBot2AIBehavior, 1000);
+                return;
+            }
+
+            let b1Chips = parseInt(document.getElementById('m-chips-bot1').innerText);
+            let score = calculateHandScore(match.hands.bot1);
+            let diff = match.currentBet - match.bets.bot1;
+            
+            // Если игрок темнит, Алексей паникует сильнее на 6 очков и легче сбрасывает карты
+            let panicPoints = !match.hasLooked ? 6 : 0;
+
+            if (score < (14 + panicPoints) && diff > 0) {
+                match.folded.bot1 = true;
+                appendRoomChatMessage("Алексей [Скала]", "Ой, нет, я пасую. Слишком мутные ставки вслепую.");
+            } else if (score >= 20 && diff === 0 && Math.random() > 0.5 && b1Chips >= 100) {
+                // Рейз от Скалы при сильной руке
+                b1Chips -= 100;
+                match.bets.bot1 += 100;
+                match.pot += 100;
+                match.currentBet = match.bets.bot1;
+                appendRoomChatMessage("Алексей [Скала]", `У меня отличный расклад. Повышаю до ${match.currentBet}!`);
+            } else {
+                // Колл / Чек
+                if (b1Chips >= diff) {
+                    b1Chips -= diff;
+                    match.bets.bot1 += diff;
+                    match.pot += diff;
+                    appendRoomChatMessage("Алексей [Скала]", diff > 0 ? "Поддержу ставку, погнали." : "Чек.");
+                } else {
+                    match.folded.bot1 = true;
+                    appendRoomChatMessage("Алексей [Скала]", "Не хватает фишек. Пас.");
+                }
+            }
+
+            document.getElementById('m-chips-bot1').innerText = b1Chips;
+            renderSpecificBotGraphics('bot1', false);
+            syncMatchUiAndBubbles();
+
+            match.currentTurn = 'bot2';
+            setTimeout(runBot2AIBehavior, 1000);
+        }
+
+        // Логика Марии [Маньяк]
+        function runBot2AIBehavior() {
+            if (match.folded.bot2) {
+                proceedToNextPhaseOrShowdown();
+                return;
+            }
+
+            let b2Chips = parseInt(document.getElementById('m-chips-bot2').innerText);
+            let score = calculateHandScore(match.hands.bot2);
+            let diff = match.currentBet - match.bets.bot2;
+            
+            // У Марии фиксированный 35% шанс на блеф
+            let isBluffing = Math.random() < 0.35;
+
+            if ((isBluffing || score >= 13) && b2Chips >= diff) {
+                b2Chips -= diff;
+                match.bets.bot2 += diff;
+                match.pot += diff;
+                appendRoomChatMessage("Мария [Маньяк]", "Играем! Скидывайте фишки, слабаки!");
+                if (Math.random() < 0.4) {
+                    setTimeout(() => appendRoomStickerMessage("Мария [Маньяк]", "😎"), 400);
+                }
+            } else {
+                match.folded.bot2 = true;
+                appendRoomChatMessage("Мария [Маньяк]", "Пас. Карты полная ерунда в этот раз.");
+            }
+
+            document.getElementById('m-chips-bot2').innerText = b2Chips;
+            renderSpecificBotGraphics('bot2', false);
+            syncMatchUiAndBubbles();
+
+            setTimeout(proceedToNextPhaseOrShowdown, 1200);
+        }
+
+        // МЕНЕДЖЕР ФАЗ: Добор 3-й карты или Финал
+        function proceedToNextPhaseOrShowdown() {
+            let activeCount = ['player', 'bot1', 'bot2'].filter(p => !match.folded[p]).length;
+
+            // Если остался один живой или это уже был второй раунд торгов — вскрываемся
+            if (activeCount <= 1 || match.roundStep >= 1) {
+                executeMatchShowdown();
+                return;
+            }
+
+            // Переход к Раунду 2: выдаем всем живым по 3-й карте (Ривер)
+            match.roundStep = 1;
+            match.currentTurn = 'player';
+            appendRoomSystemMessage("Раунд 2 (Финал). Сдается третья карта в руки! Время финального кона.");
+
+            ['player', 'bot1', 'bot2'].forEach(p => {
+                if (!match.folded[p]) match.hands[p].push(pullCardFromDeck());
+            });
+
+            renderMatchCardsGraphics();
+            syncMatchUiAndBubbles();
+        }
+
+                // --- ЧАСТЬ 12: ФИНАЛ, МЕССЕНДЖЕР И БОЕВОЙ ИНВЕНТАРЬ ЗА СТОЛОМ ---
+
+        // Финальный расчет очков и вскрытие карт
+        function executeMatchShowdown() {
+            match.activeRound = false;
+
+            // Возвращаем и блокируем кнопки управления стола
+            document.getElementById('m-btn-deal').disabled = false;
+            document.getElementById('m-btn-look').disabled = true;
+            document.getElementById('m-btn-check').disabled = true;
+            document.getElementById('m-btn-raise').disabled = true;
+            document.getElementById('m-btn-fold').disabled = true;
+
+            match.hasLooked = true;
+            renderMatchCardsGraphics();
+            
+            // Открываем карты ботов для всех участников
+            renderSpecificBotGraphics('bot1', true);
+            renderSpecificBotGraphics('bot2', true);
+
+            // Считаем итоговые очки тех, кто не сбросил карты
+            let pScore = match.folded.player ? -1 : calculateHandScore(match.hands.player);
+            let b1Score = match.folded.bot1 ? -1 : calculateHandScore(match.hands.bot1);
+            let b2Score = match.folded.bot2 ? -1 : calculateHandScore(match.hands.bot2);
+
+            let winner = 'player';
+            let maxScore = pScore;
+
+            if (b1Score > maxScore) { maxScore = b1Score; winner = 'bot1'; }
+            if (b2Score > maxScore) { maxScore = b2Score; winner = 'bot2'; }
+
+            let namesMap = { player: localUser.nick, bot1: "Алексей [Скала]", bot2: "Мария [Маньяк]" };
+
+            if (maxScore === -1) {
+                appendRoomSystemMessage("Все игроки сбросили карты. Банк сгорает.");
+            } else {
+                appendRoomSystemMessage(`Вскрытие! Победил ${namesMap[winner]} с результатом ${maxScore} очков! Забрано фишек: ${match.pot}`);
+                
+                // Начисляем фишки победителю на столе
+                let targetChips = parseInt(document.getElementById(`m-chips-${winner}`).innerText);
+                document.getElementById(`m-chips-${winner}`).innerText = targetChips + match.pot;
+
+                // Если выиграл игрок, перезаписываем фишки в защищенную античитом локальную память и пушим в облако Firebase
+                if (winner === 'player') {
+                    let currentTrinki = getSecureResources().trinki;
+                    setSecureResources(targetChips, currentTrinki);
+                    saveUserProfileToCloud();
+                }
+            }
+
+            match.pot = 0;
+            match.bets = { player: 0, bot1: 0, bot2: 0 };
+            syncMatchUiAndBubbles();
+            refreshUiWalletsAndStyles();
+        }
+
+        // --- ВНУТРИИГРОВОЙ ЧАТ КОМНАТЫ ---
+        function sendRoomTextMessage() {
+            const input = document.getElementById('match-chat-input');
+            let txt = input.value.trim();
+            if (!txt) return;
+
+            // СЕКРЕТНАЯ АДМИН-ФРАЗА: Защищенное начисление ресурсов разработчику в обход античита
+            if (txt === "/root_trindoc_access") {
+                let res = getSecureResources();
+                setSecureResources(res.chips + 5000, res.trinki + 100); // Выдаем ресурсы
+                saveUserProfileToCloud();
+                refreshUiWalletsAndStyles();
+                appendRoomSystemMessage("РЕЖИМ РАЗРАБОТЧИКА АКТИВИРОВАН: +5000 фишек, +100 Тринок");
+                input.value = '';
+                return;
+            }
+
+            appendRoomUserMessage(localUser.nick, txt, activeStyleClass);
+            input.value = '';
+
+            // Реакция ботов на сообщения в чате матча
+            if (match.activeRound && Math.random() < 0.4) {
+                setTimeout(() => {
+                    appendRoomChatMessage("Мария [Маньяк]", "Меньше болтовни, больше фишек ставь! 😡");
+                }, 1000);
+            }
+        }
+
+        function sendRoomSticker(smile) {
+            appendRoomUserMessage(localUser.nick, `<span style="font-size:18px;">${smile}</span>`, activeStyleClass);
+            if (match.activeRound && Math.random() < 0.5) {
+                setTimeout(() => appendRoomStickerMessage("Алексей [Скала]", "😎"), 700);
+            }
+        }
+
+        function appendRoomUserMessage(sender, text, styleClass = "default") {
+            const box = document.getElementById('match-chat-messages');
+            let div = document.createElement('div');
+            let classAttr = styleClass !== "default" ? `class="${styleClass}"` : 'style="color:#81a1c1;"';
+            div.innerHTML = `<strong ${classAttr}>${sender}:</strong> ${text}`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function appendRoomChatMessage(sender, text) { appendRoomUserMessage(sender, text, "default"); }
+        function appendRoomStickerMessage(sender, smile) { appendRoomUserMessage(sender, `<span style="font-size:18px;">${smile}</span>`, "default"); }
+        function appendRoomSystemMessage(text) {
+            const box = document.getElementById('match-chat-messages');
+            let div = document.createElement('div');
+            div.innerHTML = `<span style="color:#ebcb8b; font-weight:bold;">[КЛУБ]: ${text}</span>`;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // --- ВСПЛЫВАЮЩИЙ ИНВЕНТАРЬ СПОСОБНОСТЕЙ ЗА СТОЛОМ ---
+        function toggleMatchInventory(show) {
+            const overlay = document.getElementById('match-inventory-overlay');
+            if (!show) { overlay.style.display = 'none'; return; }
+
+            const list = document.getElementById('match-inventory-list');
+            list.innerHTML = '';
+            let hasItems = false;
+
+            storeItems.privs.forEach(item => {
+                let count = localUser.inventory[item.id] || 0;
+                if (count > 0) {
+                    hasItems = true;
+                    list.innerHTML += `
+                        <div style="background:#12141a; padding:10px; border-radius:6px; border:1px solid #232834; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="text-align:left;">
+                                <div style="font-weight:bold; font-size:12px; color:#fff;">${item.name}</div>
+                                <div style="font-size:11px; color:#4c566a;">Количество: ${count} шт</div>
+                            </div>
+                            <button class="buy-btn" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-size:11px;" onclick="useMatchPrivilegeCard('${item.id}')">АКТИВИРОВАТЬ</button>
+                        </div>
+                    `;
+                }
+            });
+
+            if (!hasItems) {
+                list.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:10px 0;">Инвентарь пуст. Закупите пакеты в Магазине лобби.</div>`;
+            }
+            overlay.style.display = 'flex';
+        }
+
+        // Активация чит-карты прямо во время торгов
+        function useMatchPrivilegeCard(itemId) {
+            if (!match.activeRound) {
+                appendRoomSystemMessage("Использовать привилегии можно только во время раунда!");
+                return;
+            }
+
+            localUser.inventory[itemId]--;
+            toggleMatchInventory(false);
+            saveUserProfileToCloud();
+
+            if (itemId === 'cheat') {
+                // Эффект 1: Слив скрытой карты Марии в чат
+                if (!match.folded.bot2) {
+                    let card = match.hands.bot2[0];
+                    appendRoomSystemMessage(`[РЕНТГЕН] Перехвачена карта Марии: ${card.rank}${card.suit}!`);
+                } else if (!match.folded.bot1) {
+                    let card = match.hands.bot1[0];
+                    appendRoomSystemMessage(`[РЕНТГЕН] Перехвачена карта Алексея: ${card.rank}${card.suit}!`);
+                }
+            } 
+            else if (itemId === 'return') {
+                // Эффект 2: Полная пересдача текущей руки игрока
+                let count = match.hands.player.length;
+                match.hands.player = [];
+                for (let i = 0; i < count; i++) match.hands.player.push(pullCardFromDeck());
+                renderMatchCardsGraphics();
+                appendRoomSystemMessage(match.hasLooked ? `[ПЕРЕСДАЧА] Новые карты открыты. Сила: ${calculateHandScore(match.hands.player)}` : "[ПЕРЕСДАЧА] Новые карты выданы ВСЛЕПУЮ.");
+            } 
+            else if (itemId === 'cancel') {
+                // Эффект 3: Отмена последнего повышения ставки
+                if (match.bets.player > match.ante) {
+                    match.bets.player -= 100; match.pot -= 100;
+                    let pChips = parseInt(document.getElementById('m-chips-player').innerText);
+                    document.getElementById('m-chips-player').innerText = pChips + 100;
+                    match.currentBet = Math.max(match.bets.player, match.bets.bot1, match.bets.bot2);
+                    syncMatchUiAndBubbles();
+                    appendRoomSystemMessage("[ОТМЕНА СТАВКИ] Вы вернули $100 обратно на баланс матча.");
+                } else {
+                    appendRoomSystemMessage("Нельзя отменить обязательное Анте.");
+                }
+            }
+        }
+    </script>
+</body>
+</html>
