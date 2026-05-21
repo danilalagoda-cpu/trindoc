@@ -1,34 +1,58 @@
+/**
+ * Официальный легкий REST-мост для аутентификации Firebase Auth
+ * Создает реальные аккаунты в облаке Google без тяжелых библиотек
+ */
 (function() {
     'use strict';
-    if (!window.firebase) return;
+    if (typeof firebase === 'undefined') return;
 
-    class FirebaseAuth {
-        constructor() { this.currentUser = { delete: function() { return Promise.resolve(); } }; }
-        createUserWithEmailAndPassword(email, password) {
-            let userKey = 'trindoc_user_' + btoa(email);
-            if (localStorage.getItem(userKey)) {
-                return Promise.reject({ code: "auth/email-already-in-use" });
-            }
-            let uid = 'uid_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem(userKey, JSON.stringify({ password: password, uid: uid }));
-            this.currentUser.uid = uid;
-            return Promise.resolve({ user: { uid: uid } });
+    class AuthCompat {
+        constructor(app) {
+            this.apiKey = app.options.apiKey;
+            this.currentUser = null;
         }
+
+        // РЕГИСТРАЦИЯ нового пользователя через Google REST API
+        createUserWithEmailAndPassword(email, password) {
+            const url = `https://googleapis.com{this.apiKey}`;
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(err => { throw { code: err.error.message.toLowerCase().replace(/_/g, '/') }; });
+                return res.json();
+            })
+            .then(data => {
+                this.currentUser = { uid: data.localId, email: data.email };
+                return { user: this.currentUser };
+            });
+        }
+
+        // ВХОД существующего пользователя через Google REST API
         signInWithEmailAndPassword(email, password) {
-            let userKey = 'trindoc_user_' + btoa(email);
-            let account = localStorage.getItem(userKey);
-            if (!account) return Promise.reject({ code: "auth/user-not-found" });
-            let parsed = JSON.parse(account);
-            if (parsed.password !== password) return Promise.reject({ code: "auth/wrong-password" });
-            this.currentUser.uid = parsed.uid;
-            return Promise.resolve({ user: { uid: parsed.uid } });
+            const url = `https://googleapis.com{this.apiKey}`;
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
+            })
+            .then(res => {
+                if (!res.ok) return res.json().then(err => { throw { code: err.error.message.toLowerCase().replace(/_/g, '/') }; });
+                return res.json();
+            })
+            .then(data => {
+                this.currentUser = { uid: data.localId, email: data.email };
+                return { user: this.currentUser };
+            });
         }
     }
 
-    window.firebase.auth = function() {
-        if (!window.firebase._authInstance) {
-            window.firebase._authInstance = new FirebaseAuth();
+    firebase.auth = function(app) {
+        if (!firebase._authInstance) {
+            firebase._authInstance = new AuthCompat(app || firebase.app());
         }
-        return window.firebase._authInstance;
+        return firebase._authInstance;
     };
 })();
