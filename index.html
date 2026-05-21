@@ -107,7 +107,6 @@
     </style>
 
     <script src="firebase-app.js"></script>
-    <script src="firebase-auth.js"></script>
     <script src="firebase-database.js"></script>
 </head>
 <body>
@@ -120,11 +119,9 @@
             <h1 class="logo-main">TRINDOC<br><span>онлайн</span></h1>
             
             <div class="auth-box" id="auth-form-block">
-                <input type="text" id="auth-login" class="mobile-input" placeholder="EMAIL ИЛИ ЛОГИН">
-                <input type="password" id="auth-pass" class="mobile-input" placeholder="ПАРОЛЬ">
-                <input type="text" id="auth-nick" class="mobile-input" placeholder="ВАШ НИКНЕЙМ">
-                <button class="btn-phone" id="btn-auth-submit" onclick="processAuthAction()">ЗАРЕГИСТРИРОВАТЬСЯ</button>
-                <div class="toggle-auth-link" id="auth-toggle-text" onclick="toggleAuthMode(true)">Уже есть аккаунт? Войти</div>
+                <input type="text" id="auth-nick" class="mobile-input" placeholder="ВВЕДИТЕ НИКНЕЙМ">
+                <input type="password" id="auth-pass" class="mobile-input" placeholder="ВВЕДИТЕ ПАРОЛЬ">
+                <button class="btn-phone" id="btn-auth-submit" onclick="processCustomDbAuth()">НАЧАТЬ ИГРАТЬ</button>
             </div>
         </div>
 
@@ -427,44 +424,17 @@
         
                 // --- ЧАСТЬ 2: РЕГИСТРАЦИЯ, ВХОД И БАЗЫ ДАННЫХ ---
 
-        // Переключение режимов: Регистрация <-> Вход
-        function toggleAuthMode(toLogin) {
-            isLoginMode = toLogin;
+        // Собственная система авторизации напрямую через Realtime Database
+        function processCustomDbAuth() {
             const fieldNick = document.getElementById('auth-nick');
-            const btnSubmit = document.getElementById('btn-auth-submit');
-            const toggleText = document.getElementById('auth-toggle-text');
-
-            if (isLoginMode) {
-                fieldNick.style.display = 'none'; // Убираем ник при входе
-                btnSubmit.innerText = "НАЧАТЬ ИГРАТЬ";
-                toggleText.innerText = "Новый игрок? Зарегистрироваться";
-            } else {
-                fieldNick.style.display = 'block';
-                btnSubmit.innerText = "ЗАРЕГИСТРИРОВАТЬСЯ";
-                toggleText.innerText = "Уже есть аккаунт? Войти";
-            }
-        }
-
-        // Логика отправки данных в Firebase
-        function processAuthAction() {
-            const fieldLogin = document.getElementById('auth-login');
             const fieldPass = document.getElementById('auth-pass');
-            const fieldNick = document.getElementById('auth-nick');
 
-            let email = fieldLogin.value.trim();
-            let password = fieldPass.value.trim();
             let nickname = fieldNick.value.trim();
+            let password = fieldPass.value.trim();
 
-            if (email && !email.includes('@')) {
-                email = email.toLowerCase() + "@trindoc.club";
-            }
-
-            console.log("КЛИК! Проверка полей формы:", { email, password, nickname, isLoginMode });
-
-            if (!email || !password || (!isLoginMode && !nickname)) {
-                console.log("БЛОК: Одно из полей формы пустое или не заполнено!");
-                [fieldLogin, fieldPass, fieldNick].forEach(f => {
-                    if (f && f.style.display !== 'none' && !f.value.trim()) {
+            if (!nickname || !password) {
+                [fieldNick, fieldPass].forEach(f => {
+                    if (!f.value.trim()) {
                         f.classList.remove('input-error-blink');
                         void f.offsetWidth;
                         f.classList.add('input-error-blink');
@@ -473,52 +443,127 @@
                 return;
             }
 
-            if (password.length < 6) {
-                fieldPass.classList.add('input-error-blink');
+            if (password.length < 4) {
                 fieldPass.value = "";
-                fieldPass.placeholder = "ПАРОЛЬ ОТ 6 СИМВОЛОВ!";
+                fieldPass.placeholder = "ПАРОЛЬ ОТ 4 СИМВОЛОВ!";
+                fieldPass.classList.add('input-error-blink');
                 return;
             }
 
-            if (isLoginMode) {
-                // Вход в клуб
-                auth.signInWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        currentUserId = userCredential.user.uid;
-                        loadUserProfileFromCloud();
-                    })
-                    .catch((error) => {
-                        fieldLogin.classList.add('input-error-blink');
-                        fieldPass.classList.add('input-error-blink');
-                        printAuthError(error.code);
-                    });
-            } else {
-                // Создание нового аккаунта в Firebase
-                auth.createUserWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        currentUserId = userCredential.user.uid;
-                        
-                        let defaultProfile = {
-                            nickname: nickname,
-                            chips: 1500,
-                            trinki: 50,
-                            activeStyle: "default",
-                            activeShirt: "default",
-                            ownedStyles: ["default"],
-                            ownedShirts: ["default"],
-                            inventory: { cheat: 0, return: 0, cancel: 0 },
-                            friendsList: ""
-                        };
+            // Переводим ник в безопасный ID для папки в Firebase (без точек и слешей)
+            currentUserId = nickname.replace(/[.#$/\[\]]/g, "_");
 
-                        database.ref('users/' + currentUserId).set(defaultProfile, (error) => {
-                            if (!error) loadUserProfileFromCloud();
-                        });
-                    })
-                    .catch((error) => {
-                        fieldLogin.classList.add('input-error-blink');
-                        printAuthError(error.code);
+            console.log("Запрос авторизации в базу для:", currentUserId);
+
+            // Стучимся напрямую в Realtime Database в папку пользователя
+            database.ref('users/' + currentUserId).once('value').then((snapshot) => {
+                let data = snapshot.val();
+
+                if (data) {
+                    // АВККАУНТ СУЩЕСТВУЕТ -> Проверяем пароль
+                    if (data.password === password) {
+                        console.log("Пароль верный! Загружаем профиль...");
+                        loadCustomProfileData(data);
+                    } else {
+                        console.log("Ошибка: неверный пароль!");
+                        fieldPass.value = "";
+                        fieldPass.placeholder = "НЕВЕРНЫЙ ПАРОЛЬ!";
+                        fieldPass.classList.remove('input-error-blink');
+                        void fieldPass.offsetWidth;
+                        fieldPass.classList.add('input-error-blink');
+                    }
+                } else {
+                    // АККАУНТ НЕ НАЙДЕН -> Автоматически регистрируем новый кошелек!
+                    console.log("Новый игрок! Создаем защищенную ветку в Firebase...");
+                    
+                    let newProfile = {
+                        nickname: nickname,
+                        password: password, // Сохраняем пароль прямо в базу
+                        chips: 1500,
+                        trinki: 50,
+                        activeStyle: "default",
+                        activeShirt: "default",
+                        ownedStyles: ["default"],
+                        ownedShirts: ["default"],
+                        inventory: { cheat: 0, return: 0, cancel: 0 },
+                        friendsList: ""
+                    };
+
+                    database.ref('users/' + currentUserId).set(newProfile, (error) => {
+                        if (!error) {
+                            loadCustomProfileData(newProfile);
+                        } else {
+                            alert("Ошибка записи в Firebase! Проверьте правила базы Rules.");
+                        }
                     });
-            }
+                }
+            });
+        }
+
+                // Загрузка локального кэша и переключение экранов смартфона
+        function loadCustomProfileData(data) {
+            // Переносим данные в оперативную память игры
+            localUser.nick = data.nickname;
+            localUser.ownedStyles = data.ownedStyles || ["default"];
+            localUser.ownedShirts = data.ownedShirts || ["default"];
+            localUser.inventory = data.inventory || { cheat: 0, return: 0, cancel: 0 };
+            localUser.activeShirt = data.activeShirt || "default";
+
+            // Парсим строку друзей
+            let friendsStr = data.friendsList || "";
+            localUser.friends = friendsStr ? friendsStr.split(',').map(f => {
+                let parts = f.split(':');
+                return { nick: parts[0], level: parseInt(parts[1]) || 1, shirt: parts[2] || "default", giftsCount: parseInt(parts[3]) || 0 };
+            }) : [];
+
+            // НАДЁЖНО кодируем фишки и Тринки в защищённый Античитом сейв!
+            setSecureResources(data.chips || 1500, data.trinki || 50);
+
+            // Синхронизируем инпуты кабинета
+            document.getElementById('label-username').innerText = localUser.nick;
+            document.getElementById('input-change-nick').value = localUser.nick;
+
+            // ФИКС: Скрываем панель авторизации и включаем интерфейс главного меню
+            document.getElementById('screen-auth').style.display = 'none';
+            document.getElementById('screen-dashboard').style.display = 'flex';
+
+            // Обновляем визуал лобби, Черного рынка и друзей
+            refreshUiWalletsAndStyles();
+            rebuildStoreCards();
+            rebuildProfileSubTabs();
+            rebuildFriendsListView();
+
+            // Принудительно подсвечиваем первую вкладку синим цветом
+            switchMainTab('tab-lobby');
+        }
+
+        // Обновлённая функция сохранения измененного прогресса обратно в Firebase Realtime Database
+        function saveUserProfileToCloud() {
+            if (!currentUserId) return;
+
+            let res = getSecureResources();
+            if (res.corrupted) return; // Если читер подменил фишки в памяти — база блокирует пуш
+
+            let friendsStr = localUser.friends.map(f => `${f.nick}:${f.level}:${f.shirt}:${f.giftsCount}`).join(',');
+
+            // Считываем текущий пароль игрока из базы, чтобы не затереть его при обновлении
+            database.ref('users/' + currentUserId + '/password').once('value').then((snap) => {
+                let currentPassword = snap.val() || "1234";
+
+                let updatedData = {
+                    nickname: localUser.nick,
+                    password: currentPassword, // Перезаписываем тот же пароль
+                    chips: res.chips,
+                    trinki: res.trinki,
+                    ownedStyles: localUser.ownedStyles,
+                    ownedShirts: localUser.ownedShirts,
+                    inventory: localUser.inventory,
+                    activeShirt: localUser.activeShirt,
+                    friendsList: friendsStr
+                };
+
+                database.ref('users/' + currentUserId).update(updatedData);
+            });
         }
 
         function printAuthError(code) {
@@ -1718,6 +1763,26 @@
         document.getElementById('match-chat-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendRoomTextMessage();
         });
+
+                window.addEventListener('DOMContentLoaded', () => {
+            console.log("TRINDOC Онлайн: Все системы вертикального лобби запущены.");
+            
+            // Проверяем, чтобы глобальные объекты базы данных были созданы
+            if (typeof firebase !== 'undefined') {
+                // Инициализируем наше ядро из firebase-app.js твоими ключами
+                firebase.initializeApp(firebaseConfig);
+                database = firebase.database();
+                
+                console.log("REST-Мост соединен с европейским сервером базы данных.");
+            } else {
+                console.error("Ошибка: Файлы ядра базы данных не найдены в папке проекта!");
+            }
+            
+            // Обнуляем HUD кошельков до ввода никнейма
+            document.getElementById('val-chips').innerText = "0";
+            document.getElementById('val-trinki').innerText = "0";
+        });
+
     </script>
 </body>
 </html>
