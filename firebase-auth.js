@@ -62,10 +62,10 @@
                     })
                     .then(res => {
                         return res.json().then(data => {
+                            console.log("ОТВЕТ СЕРВЕРА GOOGLE AUTH:", data); // ТУТ МЫ УВИДИМ ВСЁ!
                             if (!res.ok) {
-                                // ИСПРАВЛЕНО: Безопасное чтение ошибки без риска вызвать падение скрипта
                                 const rawMsg = data && data.error && data.error.message ? data.error.message : "UNKNOWN_ERROR";
-                                const formattedCode = `auth/${rawMsg.toLowerCase().replace(/_/g, '-')}`;
+                                const formattedCode = "auth/" + rawMsg.toLowerCase().replace(/_/g, '-');
                                 throw { code: formattedCode };
                             }
                             return data;
