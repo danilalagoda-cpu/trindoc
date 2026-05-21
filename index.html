@@ -107,9 +107,9 @@
     </style>
 
     <!-- Подключаем Firebase SDK -->
-    <script src="https://gstatic.com"></script>
-    <script src="https://gstatic.com"></script>
-    <script src="https://gstatic.com"></script>
+    <script src="firebase-app.js"></script>
+    <script src="firebase-auth.js"></script>
+    <script src="firebase-database.js"></script>
 </head>
 <body>
 
@@ -380,6 +380,7 @@
         firebase.initializeApp(firebaseConfig);
         database = firebase.database();
         auth = firebase.auth();
+
 
 
         // --- МЕХАНИКА ЗАЩИТЫ БАЛАНСА (АНТИЧИТ MTS) ---
