@@ -459,9 +459,12 @@
                 email = email.toLowerCase() + "@trindoc.club";
             }
 
+            console.log("КЛИК! Проверка полей формы:", { email, password, nickname, isLoginMode });
+
             if (!email || !password || (!isLoginMode && !nickname)) {
+                console.log("БЛОК: Одно из полей формы пустое или не заполнено!");
                 [fieldLogin, fieldPass, fieldNick].forEach(f => {
-                    if (f.style.display !== 'none' && !f.value.trim()) {
+                    if (f && f.style.display !== 'none' && !f.value.trim()) {
                         f.classList.remove('input-error-blink');
                         void f.offsetWidth;
                         f.classList.add('input-error-blink');
