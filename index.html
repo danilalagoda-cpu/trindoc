@@ -357,10 +357,12 @@
 
    
     <script>
-        // ИСПРАВЛЕНИЕ: Выносим флаг авторизации на самый верх до инициализации Firebase и функций
         var isLoginMode = false; 
         var currentUserId = null;
         var selectedFriend = null;
+        var database;
+        var auth;
+
 
         // Конфигурация подключения к твоей базе данных Firebase
         const firebaseConfig = {
@@ -374,10 +376,11 @@
             measurementId: "G-370H9C580Z"
         };
 
-        // Запуск модулей Firebase
+        
         firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const auth = firebase.auth();
+        database = firebase.database();
+        auth = firebase.auth();
+
 
         // --- МЕХАНИКА ЗАЩИТЫ БАЛАНСА (АНТИЧИТ MTS) ---
         let secureVault = {
