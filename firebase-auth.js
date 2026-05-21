@@ -1,6 +1,6 @@
 /**
  * Сверхлегкий REST-мост для аутентификации Firebase Auth
- * Работает через прямые сетевые запросы fetch
+ * Защищен от перезаписи доменов старыми скриптами
  */
 (function() {
     'use strict';
@@ -14,8 +14,11 @@
 
         // РЕГИСТРАЦИЯ
         createUserWithEmailAndPassword(email, password) {
-            const url = "https://googleapis.com" + this.apiKey;
-            return fetch(url, {
+            // Заставляем браузер жестко зафиксировать чистый домен Google API
+            const base = new URL("https://googleapis.com");
+            base.searchParams.append("key", this.apiKey);
+
+            return fetch(base.toString(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
@@ -33,8 +36,10 @@
 
         // ВХОД
         signInWithEmailAndPassword(email, password) {
-            const url = "https://googleapis.com" + this.apiKey;
-            return fetch(url, {
+            const base = new URL("https://googleapis.com");
+            base.searchParams.append("key", this.apiKey);
+
+            return fetch(base.toString(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
