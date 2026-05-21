@@ -53,7 +53,7 @@
                     const cleanFetch = getCleanFetch();
                     
                     // ИСПРАВЛЕНО: Полный рабочий URL Firebase REST API с поддержкой знака $
-                    const targetUrl = `https://googleapis.com{action}?key=${this.options.apiKey}`;
+                    const targetUrl = "https://identitytoolkit.googleapis.com/v1/accounts:" + action + "?key=" + this.options.apiKey;
                     
                     return cleanFetch(targetUrl, {
                         method: 'POST',
