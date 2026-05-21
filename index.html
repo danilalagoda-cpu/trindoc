@@ -524,8 +524,18 @@
             document.getElementById('label-username').innerText = localUser.nick;
             document.getElementById('input-change-nick').value = localUser.nick;
 
-            // ФИКС: Скрываем панель авторизации и включаем интерфейс главного меню
-            document.getElementById('screen-auth').style.display = 'none';
+            // БРОНЕБОЙНЫЙ ФИКС: Гарантированно скрываем стартовое окно по любому существующему ID
+            if (document.getElementById('screen-auth')) {
+                document.getElementById('screen-auth').style.display = 'none';
+            }
+            if (document.getElementById('auth-panel')) {
+                document.getElementById('auth-panel').style.display = 'none';
+            }
+            if (document.getElementById('screen-login')) {
+                document.getElementById('screen-login').style.display = 'none';
+            }
+
+            // Включаем главное меню лобби
             document.getElementById('screen-dashboard').style.display = 'flex';
 
             // Обновляем визуал лобби, Черного рынка и друзей
