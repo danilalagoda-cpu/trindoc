@@ -2439,7 +2439,7 @@
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
 
-        // Создание стола с динамическими параметрами (Расширение до 4 мест)
+              // Создание стола с динамическими параметрами (Полный фикс автозахода на сукно)
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит-блокировка
@@ -2476,13 +2476,21 @@
     
             database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
                 if (!error) {
-                    // Мгновенно перекидываем создателя на сукно матча
-                    enterOnlineMatchLayout(roomData);
-                    listenRoomStatusChanges(currentRoomId); // Включаем сетевую слежку
+                    // ЖЕЛЕЗНЫЙ ФИКС АВТОЗАХОДА: Скачиваем чистый слепок стола с Firebase, чтобы рендер прошел без ошибок
+                    database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
+                        let freshRoomData = snapshot.val();
+                
+                        // Мгновенно переключаем экран смартфона и садимся на синее сукно
+                        enterOnlineMatchLayout(freshRoomData);
+                
+                        // Включаем сетевую слежку за комнатой и запускаем таймер плавных ботов
+                        listenRoomStatusChanges(currentRoomId); 
+                    });
+                } else {
+                    alert("Ошибка создания стола в Firebase! Проверьте вкладку Rules в консоли.");
                 }
             });
         }
-
 
         // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
         function listenActiveRooms() {
