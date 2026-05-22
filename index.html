@@ -2159,14 +2159,18 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            console.log("TRINDOC Онлайн: Все системы вертикального лобби запущены.");
+            // ЖЕСТКИЙ СБРОС ЭКРАНОВ ПРИ СТАРТЕ: Прячем сукно стола и лобби, включаем только вход!
+            if (document.getElementById('screen-match')) document.getElementById('screen-match').style.display = 'none';
+            if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
+            // Если у вас экран входа имеет отдельный ID (например, screen-auth), можно явно включить его:
+            // if (document.getElementById('screen-auth')) document.getElementById('screen-auth').style.display = 'flex';
+
+            console.log("TRINDOC Онлайн: Все systems вертикального лобби запущены.");
             
             // Проверяем, чтобы глобальные объекты базы данных были созданы
             if (typeof firebase !== 'undefined') {
-                // Инициализируем наше ядро из firebase-app.js твоими ключами
                 firebase.initializeApp(firebaseConfig);
                 database = firebase.database();
-                
                 console.log("REST-Мост соединен с европейским сервером базы данных.");
             } else {
                 console.error("Ошибка: Файлы ядра базы данных не найдены в папке проекта!");
@@ -2176,7 +2180,6 @@
             if (document.getElementById('val-chips')) document.getElementById('val-chips').innerText = "0";
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
-
 
         // Создание стола с динамическими параметрами (Расширение до 4 мест)
         function triggerCreateOnlineRoom() {
