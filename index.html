@@ -710,7 +710,7 @@
             });
         }
 
-         // Загрузка локального кэша и переключение экранов смартфона (Фикс аватарок и стилей)
+           // Загрузка локального кэша и переключение экранов смартфона (Железный фикс автозагрузки фото)
         function loadCustomProfileData(data) {
             // Переносим данные в оперативную память игры
             localUser.nick = data.nickname;
@@ -736,10 +736,12 @@
             document.getElementById('label-username').innerText = localUser.nick;
             document.getElementById('input-change-nick').value = localUser.nick;
 
+            // ЖЕЛЕЗНЫЙ ФИКС: Принудительно связываем глобальный буфер с базой данных при входе
+            localSelectedAvatarData = localUser.avatar;
+
             // АВТО-ОТРИСОВКА ЗАГРУЖЕННОЙ ФОТОГРАФИИ В ИНТЕРФЕЙСЕ ЛОББИ
             if (localUser.avatar) {
-                localSelectedAvatarData = localUser.avatar;
-                if (typeof applyAvatarToUi === "function") applyAvatarToUi(localSelectedAvatarData);
+                if (typeof applyAvatarToUi === "function") applyAvatarToUi(localUser.avatar);
             } else {
                 if (typeof resetAvatarToDefault === "function") resetAvatarToDefault();
             }
@@ -747,7 +749,7 @@
             // ФИКС НАЛОЖЕНИЯ: Принудительно гасим блок ввода и скрываем логотипы стартовой страницы
             const authBlock = document.getElementById('auth-form-block');
             if (authBlock) authBlock.style.display = 'none';
-    
+
             const authLabels = document.querySelectorAll('.logo-main, .logo-sub');
             authLabels.forEach(el => el.style.display = 'none');
 
@@ -773,6 +775,7 @@
                 listenActiveRooms();
             }
         }
+
 
         // Обновлённая функция сохранения измененного прогресса обратно в Firebase Realtime Database
         function saveUserProfileToCloud() {
@@ -1375,12 +1378,13 @@
 
                 // --- ЧАСТЬ 5: ДРУЗЬЯ, УДАЛЕНИЕ И ПОДАРКИ С АНТИЧИТОМ ---
 
-        // Перерисовка списка контактов во вкладке «Друзья»
+                // Перерисовка списка контактов во вкладке «Друзья» с сетевой подгрузкой аватарок
         function rebuildFriendsListView() {
             const listContainer = document.getElementById('list-friends-box');
+            if (!listContainer) return;
             listContainer.innerHTML = '';
 
-            if (localUser.friends.length === 0) {
+            if (!localUser.friends || localUser.friends.length === 0) {
                 listContainer.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:12px; padding:15px 0;">У вас пока нет добавленных друзей</div>`;
                 return;
             }
@@ -1388,10 +1392,16 @@
             localUser.friends.forEach((friend, idx) => {
                 let styleClassAttr = friend.level >= 20 ? 'class="style-vip-snake"' : (friend.level >= 10 ? 'class="style-green"' : 'style="color:#fff; font-weight:bold;"');
                 
+                // Генерируем уникальный ID элемента для кружка аватарки друга, чтобы подгрузить фотку точечно
+                let safeFriendId = friend.nick.replace(/[.#$/\[\]\s]/g, "_");
+                let domAvatarId = `friend-avatar-row-${safeFriendId}-${idx}`;
+
+                // Рендерим базовый каркас строки друга
                 listContainer.innerHTML += `
-                    <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="background:#111216; padding:12px; border-radius:8px; border:1px solid #282c37; display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:32px; height:32px; background:#4c566a; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:14px;">👤</div>
+                            <!-- Кружок аватарки друга с уникальным ID -->
+                            <div id="${domAvatarId}" style="width:34px; height:34px; background:#4c566a; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:14px; background-size:cover; background-position:center; overflow:hidden;">👤</div>
                             <div style="text-align:left;">
                                 <span ${styleClassAttr}>${friend.nick}</span>
                                 <div style="font-size:11px; color:#4c566a;">Уровень: ${friend.level}</div>
@@ -1403,6 +1413,16 @@
                         </div>
                     </div>
                 `;
+
+                // СЕТЕВОЙ ФОНОВЫЙ ТРИГГЕР: Асинхронно скачиваем аватарку конкретного друга из Firebase
+                database.ref('users/' + safeFriendId + '/avatar').once('value').then((snap) => {
+                    let avatarData = snap.val();
+                    let targetCircle = document.getElementById(domAvatarId);
+                    if (targetCircle && avatarData && avatarData.startsWith("data:image")) {
+                        targetCircle.innerText = ""; // Стираем силуэт 👤
+                        targetCircle.style.backgroundImage = `url(${avatarData})`;
+                    }
+                });
             });
         }
 
@@ -1441,94 +1461,97 @@
             rebuildFriendsListView();
         }
 
-        // Открытие всплывающей визитки инспектирования друга (с заполнением полки)
+  // Открытие всплывающей визитки инспектирования друга (с загрузкой фото и полки)
         function openFriendInspect(index) {
             selectedFriend = localUser.friends[index];
             if (!selectedFriend) return;
 
             // 1. Привязка текстовых данных левой колонки
             const nameLabel = document.getElementById('inspect-username');
-            nameLabel.innerText = selectedFriend.nick;
-            nameLabel.className = "";
+            if (nameLabel) {
+                nameLabel.innerText = selectedFriend.nick;
+                nameLabel.className = "";
+                if (selectedFriend.level >= 20) nameLabel.className = "style-vip-snake";
+                else if (selectedFriend.level >= 10) nameLabel.className = "style-green";
+            }
 
-            if (selectedFriend.level >= 20) nameLabel.className = "style-vip-snake";
-            else if (selectedFriend.level >= 10) nameLabel.className = "style-green";
+            if (document.getElementById('inspect-level')) document.getElementById('inspect-level').innerText = selectedFriend.level;
+            if (document.getElementById('inspect-shirt')) document.getElementById('inspect-shirt').innerText = selectedFriend.shirt === 'default' ? 'Классическая' : selectedFriend.shirt;
+            if (document.getElementById('inspect-gifts-count')) document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount || 0;
 
-            document.getElementById('inspect-level').innerText = selectedFriend.level;
-            document.getElementById('inspect-shirt').innerText = selectedFriend.shirt === 'default' ? 'Классическая' : selectedFriend.shirt;
-            document.getElementById('inspect-gifts-count').innerText = selectedFriend.giftsCount || 0;
+            // СЕТЕВОЙ ЗАПРОС АВАТАРКИ ДРУГА ДЛЯ ВИЗИТКИ ИНСПЕКЦИИ
+            let safeFriendId = selectedFriend.nick.replace(/[.#$/\[\]\s]/g, "_");
+            
+            // Проверяем, создали ли мы элемент большой аватарки внутри модального окна визитки
+            let modalBigAvatar = document.getElementById('inspect-big-avatar');
+            if (modalBigAvatar) {
+                // Возвращаем дефолт на время скачивания
+                modalBigAvatar.innerText = "👤";
+                modalBigAvatar.style.backgroundImage = "none";
+
+                database.ref('users/' + safeFriendId + '/avatar').once('value').then((snap) => {
+                    let friendAvatarData = snap.val();
+                    if (friendAvatarData && friendAvatarData.startsWith("data:image")) {
+                        modalBigAvatar.innerText = ""; // Стираем силуэт 👤
+                        modalBigAvatar.style.backgroundImage = `url(${friendAvatarData})`;
+                    }
+                });
+            }
 
             // 2. Динамическая генерация полки подарков в правой колонке
             const shelf = document.getElementById('inspect-gifts-shelf');
-            shelf.innerHTML = ""; // Очищаем полку перед заполнением
+            if (shelf) {
+                shelf.innerHTML = ""; 
+                const giftsObj = selectedFriend.gifts || {};
+                let hasGifts = false;
 
-            // Вытаскиваем подарки из объекта друга (или создаем пустой, если их нет)
-            const giftsObj = selectedFriend.gifts || {};
-            let hasGifts = false;
+                const giftMap = [
+                    { key: 'gift_cigar', icon: '🚬', bg: '#231e1c', border: '#4e3629' },
+                    { key: 'gift_drink', icon: '🥃', bg: '#1c1f26', border: '#2d3748' }
+                ];
 
-            // Массив-карта для красивого рендера слотов
-            const giftMap = [
-                { key: 'gift_cigar', icon: '🚬', bg: '#231e1c', border: '#4e3629' },
-                { key: 'gift_drink', icon: '🥃', bg: '#1c1f26', border: '#2d3748' }
-            ];
+                giftMap.forEach(item => {
+                    const count = giftsObj[item.key] || 0;
+                    if (count > 0) {
+                        hasGifts = true;
+                        const slot = document.createElement('div');
+                        slot.style.cssText = `
+                            position: relative; width: 44px; height: 44px; background: ${item.bg};
+                            border: 2px solid ${item.border}; border-radius: 50%; display: flex;
+                            justify-content: center; align-items: center; font-size: 20px; flex-shrink: 0;
+                            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+                        `;
+                        slot.innerText = item.icon;
 
-            giftMap.forEach(item => {
-                const count = giftsObj[item.key] || 0;
-                if (count > 0) {
-                    hasGifts = true;
-                    
-                    // Создаем круглый слот для подарка в стиле Дурака Онлайн
-                    const slot = document.createElement('div');
-                    slot.style.cssText = `
-                        position: relative;
-                        width: 44px;
-                        height: 44px;
-                        background: ${item.bg};
-                        border: 2px solid ${item.border};
-                        border-radius: 50%;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        font-size: 20px;
-                        flex-shrink: 0;
-                        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+                        const badge = document.createElement('div');
+                        badge.style.cssText = `
+                            position: absolute; bottom: -2px; right: -2px; background: #10b981;
+                            color: #fff; font-size: 9px; font-weight: bold; padding: 1px 4px;
+                            border-radius: 6px; border: 1px solid #111216; line-height: 1;
+                        `;
+                        badge.innerText = 'x' + count;
+
+                        slot.appendChild(badge);
+                        shelf.appendChild(slot);
+                    }
+                });
+
+                if (!hasGifts) {
+                    shelf.innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#4c566a; font-size:10px; text-align:center; padding-top:20px; gap:6px;">
+                            <div style="width:36px; height:36px; border:1px dashed #282c37; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:14px; opacity:0.4;">🎁</div>
+                            <span>Полка пуста</span>
+                        </div>
                     `;
-                    slot.innerText = item.icon;
-
-                    // Маленький счетчик количества "x3" поверх слота
-                    const badge = document.createElement('div');
-                    badge.style.cssText = `
-                        position: absolute;
-                        bottom: -2px;
-                        right: -2px;
-                        background: #10b981;
-                        color: #fff;
-                        font-size: 9px;
-                        font-weight: bold;
-                        padding: 1px 4px;
-                        border-radius: 6px;
-                        border: 1px solid #111216;
-                        line-height: 1;
-                    `;
-                    badge.innerText = 'x' + count;
-
-                    slot.appendChild(badge);
-                    shelf.appendChild(slot);
                 }
-            });
-
-            // Если у друга вообще нет подарков, выводим аккуратную пустую ячейку-заглушку
-            if (!hasGifts) {
-                shelf.innerHTML = `
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#4c566a; font-size:10px; text-align:center; padding-top:20px; gap:6px;">
-                        <div style="width:36px; height:36px; border:1px dashed #282c37; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:14px; opacity:0.4;">🎁</div>
-                        <span>Полка пуста</span>
-                    </div>
-                `;
             }
 
-            // Показываем обновленное модальное окно
-            document.getElementById('modal-friend-inspect').style.display = 'flex';
+            // Показываем обновленное модальное окно визитки друга
+            if (document.getElementById('modal-friend-friend-inspect')) {
+                document.getElementById('modal-friend-friend-inspect').style.display = 'flex';
+            } else if (document.getElementById('modal-friend-inspect')) {
+                document.getElementById('modal-friend-inspect').style.display = 'flex';
+            }
         }
 
         function closeFriendInspect() {
@@ -2026,58 +2049,62 @@
             ];
 
             // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ ---
-            oppUiMap.forEach((ui, index) => {
-                const opp = opponents[index];
+             // Массив соответствия графических ID элементов на сукне (Левый, Верхний, Правый оппоненты)
+            const oppUiMap = [
+                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 2 }, // Лево -> opponents[2]
+                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх -> opponents[1]
+                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 0 } // Право -> opponents[0]
+            ];
+
+            // Модифицированный цикл отрисовки карт оппонентов под новые индексы
+            oppUiMap.forEach((ui) => {
+                const opp = opponents[ui.index]; // Подхватываем правильный индекс зеркала
                 const cardsCont = document.getElementById(ui.containerId);
                 const boxEl = document.getElementById(ui.boxId);
                 
                 if (!cardsCont || !boxEl) return;
 
-                // Сбрасываем мигающую рамку активности хода
                 boxEl.style.outline = "none";
                 boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
                 if (opp && opp.id) {
                     cardsCont.innerHTML = '';
 
-                    // Если оппонент пасанул — выводим текстовую заглушку ПАС
                     if (opp.status === 'folded') {
                         cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px;'>🏳️ ПАС</span>";
                     } else if (opp.cards && opp.cards.length > 0) {
-                        // Если идет игра и карты есть — рендерим 3 рубашки веером
                         opp.cards.forEach((c, idx) => {
                             let div = document.createElement('div');
-                            
-                            // Если игра завершилась (Вскрытие/Showdown) — показываем номиналы карт соперников по сети!
                             if (room.status === "showdown") {
                                 div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
                                 div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
                                 div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
                             } else {
-                                // Иначе — закрытые рубашки
                                 div.className = 'playing-card card-back';
                                 div.style.width = '32px'; div.style.height = '46px';
                             }
-                            
-                            // Веерный сдвиг для боковых карт
                             div.style.marginLeft = idx > 0 ? "-18px" : "0px";
                             cardsCont.appendChild(div);
                         });
                     }
 
-                    // ПОДСВЕТКА АКТИВНОГО ХОДА: если сейчас ходит этот оппонент — заставляем рамку сочно мигать синим
                     if (room.turn === opp.id && room.status === "playing") {
                         boxEl.style.outline = "2px dashed #3b82f6";
                         boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
                     }
 
-                    // Выводим баббл текущей ставки прямо внутрь плашки ника игрока
                     let nameField = document.getElementById(ui.bubbleId);
                     if (nameField) {
                         nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
                     }
+                    
+                    let chipsField = document.getElementById(ui.chipsId);
+                    if (chipsField) {
+                        chipsField.innerText = opp.chips || "0";
+                    }
                 }
             });
+
 
             // Подсвечиваем рамку нашего нижнего аватара, если ход ХОДИТЕ ВЫ
             const myBox = document.getElementById('m-profile-box');
@@ -2675,16 +2702,16 @@
             });
         }
 
-        // Универсальное распределение игроков по 4 креслам крестообразного стола матча
+          // Универсальное распределение игроков по 4 креслам крестообразного стола матча (Зеркальный фикс)
         function enterOnlineMatchLayout(room) {
             // Мгновенно переключаем экраны телефона: прячем лобби, включаем сукно
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
             if (document.getElementById('screen-match')) document.getElementById('screen-match').style.display = 'flex';
-            
+    
             if (document.getElementById('match-pot-val')) {
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
-            
+    
             // Массив всех 4 кресел в базе данных комнаты
             const allSeats = [
                 { id: room.p1_id, name: room.p1_name, chips: room.p1_chips },
@@ -2695,12 +2722,12 @@
 
             // ЖЕЛЕЗНЫЙ ПОИСК: Ищем наше кресло строго по текстовому Никнейму
             const mySeatIndex = allSeats.findIndex(seat => seat.name === localUser.nick);
-            
+    
             if (mySeatIndex !== -1) {
                 // 1. Выводим наши данные в нижний (главный) аватар игрока
                 document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
                 document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
-                
+        
                 // 2. Собираем список оппонентов, сдвигая массив по часовой стрелке относительно нас
                 let opponents = [];
                 for (let i = 1; i < 4; i++) {
@@ -2708,18 +2735,23 @@
                     opponents.push(allSeats[opponentIndex]);
                 }
 
-                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 0 в массиве)
-                if (opponents[0] && opponents[0].name) {
+                // ЖЕЛЕЗНЫЙ ГЕОМЕТРИЧЕСКИЙ ФИКС ЗЕРКАЛА:
+                // opponents[2] -> Садится на ЛЕВОЕ кресло (Bot1)
+                // opponents[1] -> Садится на ВЕРХНЕЕ кресло (Bot2)
+                // opponents[0] -> Садится на ПРАВОЕ кресло (Bot3)
+
+                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 2 из массива opponents)
+                if (opponents[2] && opponents[2].name) {
                     document.getElementById('seat-opp-left').style.display = 'block';
-                    document.getElementById('m-label-opp-name-left').innerText = opponents[0].name;
-                    document.getElementById('m-chips-bot1').innerText = opponents[0].chips;
+                    document.getElementById('m-label-opp-name-left').innerText = opponents[2].name;
+                    document.getElementById('m-chips-bot1').innerText = opponents[2].chips;
                 } else {
                     document.getElementById('seat-opp-left').style.display = (room.maxPlayers >= 2) ? 'block' : 'none';
                     document.getElementById('m-label-opp-name-left').innerText = "Ожидание...";
                     document.getElementById('m-chips-bot1').innerText = "0";
                 }
 
-                // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Индекс 1 в массиве)
+                // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Индекс 1 из массива opponents)
                 if (opponents[1] && opponents[1].name) {
                     document.getElementById('seat-opp-top').style.display = 'block';
                     document.getElementById('m-label-opp-name-top').innerText = opponents[1].name;
@@ -2730,11 +2762,11 @@
                     document.getElementById('m-chips-bot2').innerText = "0";
                 }
 
-                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 2 в массиве)
-                if (opponents[2] && opponents[2].name) {
+                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 0 из массива opponents)
+                if (opponents[0] && opponents[0].name) {
                     document.getElementById('seat-opp-right').style.display = 'block';
-                    document.getElementById('m-label-opp-name-right').innerText = opponents[2].name;
-                    document.getElementById('m-chips-bot3').innerText = opponents[2].chips;
+                    document.getElementById('m-label-opp-name-right').innerText = opponents[0].name;
+                    document.getElementById('m-chips-bot3').innerText = opponents[0].chips;
                 } else {
                     document.getElementById('seat-opp-right').style.display = (room.maxPlayers >= 4) ? 'block' : 'none';
                     document.getElementById('m-label-opp-name-right').innerText = "Ожидание...";
@@ -2742,6 +2774,7 @@
                 }
             }
         }
+
 
                 // Генерация и перемешивание колоды из 24 карт (от Девятки до Туза)
         function generateOnlineDeck() {
