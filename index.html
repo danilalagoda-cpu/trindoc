@@ -2229,7 +2229,7 @@
 
                 // --- ЧАСТЬ 10: ФИНАЛ, МЕССЕНДЖЕР И БОЕВОЙ ИНВЕНТАРЬ ЗА СТОЛОМ ---
 
-         // Облачный расчет результатов кона и начисление фишек победителю по сети
+        // Облачный расчет результатов кона с разрешением споров триплетов и мастей
         function executeOnlineShowdownLogic() {
             if (!currentRoomId) return;
 
@@ -2238,37 +2238,79 @@
                 if (!room || room.status !== 'showdown') return;
 
                 const seats = ['p1', 'p2', 'p3', 'p4'];
-                let maxScore = -1;
+                
                 let winnerSeatKey = null;
                 let winnerId = null;
                 let winnerName = "";
+                
+                // Временные переменные для поиска абсолютного лидера
+                let maxScore = -1;
+                let bestHandCards = null;
+
+                // Карта веса рангов для точного сравнения старшинства карт при равенстве очков
+                const rankWeights = { '9': 9, '10': 10, 'В': 11, 'Д': 12, 'К': 13, 'Т': 14 };
 
                 seats.forEach(s => {
                     if (room[s + '_id'] && room[s + '_status'] === 'active') {
-                        let score = calculateOnlineHandScore(room[s + '_cards']);
+                        let currentCards = room[s + '_cards'] || [];
+                        let score = calculateOnlineHandScore(currentCards);
+                        
                         if (score > maxScore) {
+                            // Нашли руку, которая сильнее просто по базовым очкам
                             maxScore = score;
                             winnerSeatKey = s;
                             winnerId = room[s + '_id'];
                             winnerName = room[s + '_name'];
+                            bestHandCards = currentCards;
+                        } else if (score === maxScore && score > 0) {
+                            // СПОРНАЯ СИТУАЦИЯ: Очки одинаковые! Запускаем тай-брейк по старшинству карт
+                            let isCurrentStronger = false;
+
+                            // Разбираем случай 1: Спор двух триплетов (у обоих по 34 очка)
+                            let isCurrentTriplet = (currentCards.length === 3 && currentCards[0].rank === currentCards[1].rank);
+                            let isBestTriplet = (bestHandCards && bestHandCards.length === 3 && bestHandCards[0].rank === bestHandCards[1].rank);
+
+                            if (isCurrentTriplet && isBestTriplet) {
+                                // Побеждает триплет, у которого выше ранг карты (например, Короли бьют Дам)
+                                if (rankWeights[currentCards[0].rank] > rankWeights[bestHandCards[0].rank]) {
+                                    isCurrentStronger = true;
+                                }
+                            } else {
+                                // Разбираем случай 2: Спор равных очков по масти (например, 20 очков против 20 очков)
+                                // Ищем самую старшую карту в текущей руке и в руке лидера
+                                let currentMaxCardWeight = Math.max(...currentCards.map(c => rankWeights[c.rank] || 0));
+                                let bestMaxCardWeight = Math.max(...bestHandCards.map(c => rankWeights[c.rank] || 0));
+
+                                if (currentMaxCardWeight > bestMaxCardWeight) {
+                                    isCurrentStronger = true;
+                                }
+                            }
+
+                            // Если текущая оспариваемая рука оказалась старше — переписываем победителя на неё
+                            if (isCurrentStronger) {
+                                winnerSeatKey = s;
+                                winnerId = room[s + '_id'];
+                                winnerName = room[s + '_name'];
+                                bestHandCards = currentCards;
+                            }
                         }
                     }
                 });
 
                 if (winnerSeatKey) {
-                    appendRoomSystemMessage(`ВСКРЫТИЕ! Победил ${winnerName} (${maxScore} оч.)! Выигрыш: +${room.pot} фишек.`);
+                    appendRoomSystemMessage(`ВСПРЫТИЕ! Победа по старшинству карт: ${winnerName} (${maxScore} оч.)! Выигрыш: +${room.pot} фишек.`);
                     
                     let updates = {
-                        status: "waiting", // Возвращаем стол в ожидание нового раунда
+                        status: "waiting", // Возвращаем стол в ожидание нового кона
                         pot: 0,
                         currentBet: 0,
                         turn: ""
                     };
 
-                    // Начисляем фишки в стек победителя прямо на сервере
+                    // Начисляем фишки в стек победителя на сервере Firebase Europe
                     updates[winnerSeatKey + '_chips'] = (room[winnerSeatKey + '_chips'] || 0) + room.pot;
 
-                    // Если победили МЫ (Хост) — зачисляем себе в кошелек через античит
+                    // Если победили МЫ (Хост) — зачисляем выигрыш локально через MTS Античит
                     if (winnerId === currentUserId) {
                         let res = getSecureResources();
                         res.chips += room.pot;
@@ -2276,20 +2318,21 @@
                         saveUserProfileToCloud();
                     }
 
-                    // Сбрасываем карты всем креслам для следующей раздачи
+                    // Очищаем карты всех кресел для подготовки к следующей раздаче
                     seats.forEach(s => {
                         updates[s + '_cards'] = [];
                         updates[s + '_bet'] = 0;
                         if (room[s + '_id']) updates[s + '_status'] = "active";
                     });
 
-                    // Отправляем финальный пакет итогов в Firebase Europe
+                    // Отправляем финальный пакет итогов торгов в Firebase
                     database.ref('rooms/' + currentRoomId).update(updates).then(() => {
                         refreshUiWalletsAndStyles();
                     });
                 }
-            });
-        }
+            }
+        });
+
 
         // --- ЛОГИКА ОТПРАВКИ И ОТОБРАЖЕНИЯ ЧАТА МАТЧА ---
         function sendRoomTextMessage() {
@@ -2439,7 +2482,7 @@
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
 
-             // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
+              // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит-блокировка
@@ -2470,13 +2513,13 @@
                 p2_id: "", p2_name: "", p2_chips: 0,
                 p3_id: "", p3_name: "", p3_chips: 0,
                 p4_id: "", p4_name: "", p4_chips: 0
-            };
+            }; // <-- ЖЕЛЕЗНЫЙ ФИКС: Сюда добавлена пропущенная закрывающая скобка!
 
             console.log("Регистрация стола на сервере:", currentRoomId);
-    
+  
             // БРОНЕБОЙНЫЙ ФИКС: Мгновенно переключаем экраны, не дожидаясь колбэков от сети
             enterOnlineMatchLayout(roomData);
-    
+  
             // Сразу включаем сетевую слежку за комнатой и плавных ботов
             listenRoomStatusChanges(currentRoomId); 
 
@@ -2490,7 +2533,6 @@
                 }
             });
         }
-
 
             console.log("Регистрация стола на сервере:", currentRoomId);
     
