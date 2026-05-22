@@ -439,6 +439,9 @@
         var database;
         var auth;
 
+                        // --- СЕТЕВОЙ ОНЛАЙН-ДВИЖОК КОМНАТ (БЕЗ АЛЕРТОВ) ---
+        let currentRoomId = null;
+
 
         // Конфигурация подключения к твоей базе данных Firebase
         const firebaseConfig = {
@@ -1968,9 +1971,6 @@
             document.getElementById('val-chips').innerText = "0";
             document.getElementById('val-trinki').innerText = "0";
         });
-
-                // --- СЕТЕВОЙ ОНЛАЙН-ДВИЖОК КОМНАТ (БЕЗ АЛЕРТОВ) ---
-        let currentRoomId = null;
 
         // Создание стола с динамическими параметрами
         function triggerCreateOnlineRoom() {
