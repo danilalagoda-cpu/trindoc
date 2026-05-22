@@ -231,7 +231,8 @@
                             <label style="font-size: 10px; color: #4c566a; font-weight: bold; text-transform: uppercase;">Мест за столом</label>
                             <select id="select-max-players" style="background: #0f1115; border: 1px solid #232731; padding: 10px; border-radius: 8px; color: #fff; font-family: inherit; font-size: 12px; outline: none; width: 100%;">
                                 <option value="2">2 Игрока (1 на 1)</option>
-                                <option value="3">3 Игрока (Максимум)</option>
+                                <option value="3">3 Игрока</option>
+                                <option value="4">4 Игрока (Максимум)</option>
                             </select>
                         </div>
                     </div>
@@ -324,81 +325,122 @@
                     </div>
                     <div id="priv-chat-messages" style="flex:1; background:#111216; border-radius:8px; padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; font-size:13px; min-height:220px; max-height:220px;"></div>
                     <div style="display:flex; gap:5px; margin-top:8px;">
-                        <input type="text" id="priv-chat-input" placeholder="Сообщение другу..." style="flex:1; background:#111216; border:1px solid #282c37; border-radius:6px; padding:10px; color:#fff; outline:none; font-size:13px;">
-                        <button onclick="sendPrivateMessage()" style="background:#3b82f6; border:none; color:#fff; padding:0 15px; border-radius:6px; font-weight:bold; cursor:pointer;">-></button>
+                        <!-- Внедрен безопасный вызов функции checkChatEnterKey при нажатии клавиш -->
+                        <input type="text" id="priv-chat-input" onkeypress="checkChatEnterKey(event)" placeholder="Сообщение другу..." style="flex:1; background:#111216; border:1px solid #282c37; border-radius:6px; padding:10px; color:#fff; outline:none; font-size:13px;">
+                        <button onclick="sendPrivateMessage()" style="background:#3b82f6; border:none; color:#fff; padding:0 15px; border-radius:6px; font-weight:bold; cursor:pointer;">-&gt;</button>
                     </div>
                 </div>
             </div>
 
             <!-- ВКЛАДКА: ПРАВИЛА -->
-            <div class="view-panel" id="tab-rules" style="font-size:13px; line-height:1.5; overflow-y:auto;">
-                <div style="background:#111216; border:1px solid #282c37; border-radius:8px; padding:15px;">
-                    <h3 style="margin-top:0; color:#3b82f6; font-size:14px; text-transform:uppercase;">Кодекс клуба TRINDOC</h3>
-                    <h4 style="color:#ecc94b; margin: 10px 0 3px 0;">ПРАВИЛА ИГРЫ:</h4>
-                    <p style="margin:0; color:#a0aec0;">Сдается по 3 карты. Очки считаются только по ОДНОЙ МЕСТНОЙ МАСТИ (Туз=11, К/Д/В/10=10). Триплет (три одинаковых карты) = 35-36 очков (бьет всё).</p>
-                    <h4 style="color:#ef4444; margin: 10px 0 3px 0;">ЗАПРЕТЫ:</h4>
-                    <p style="margin:0; color:#a0aec0;">Оскорбления в чате, тиминг (слив карт) и читерство караются баном аккаунта во всей базе Firebase.</p>
+            <div class="view-panel" id="tab-rules" style="font-size:13px; line-height:1.5; overflow-y:auto; height: 100%; box-sizing: border-box; padding-bottom: 20px;">
+                <div style="background:#111216; border:1px solid #282c37; border-radius:12px; padding:15px; display:flex; flex-direction:column; gap:12px;">
+                    <h3 style="margin-top:0; color:#3b82f6; font-size:14px; text-transform:uppercase; text-align:center; border-bottom:1px solid #282c37; padding-bottom:8px; margin-bottom:4px;">Кодекс клуба TRINDOC</h3>
+                    
+                    <h4 style="color:#ecc94b; margin:0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">📋 СУТЬ ИГРЫ:</h4>
+                    <p style="margin:0; color:#a0aec0; font-size:12px;">Каждому игроку сдается по <b>3 карты</b>. Задача — собрать максимальную сумму очков и забрать весь банк (кон) с помощью ставок или блефа, вынудив соперников сказать «Пас».</p>
+                    
+                    <h4 style="color:#ecc94b; margin:4px 0 0 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">🧮 ПОДСЧЕТ ОЧКОВ:</h4>
+                    <ul style="margin:0; padding-left:20px; color:#a0aec0; display:flex; flex-direction:column; gap:4px; font-size:12px;">
+                        <li>Суммируются карты только <b>ОДНОЙ МАСТИ</b>.</li>
+                        <li><b>Туз</b> приносит — <span style="color:#fff; font-weight:bold;">11 очков</span>.</li>
+                        <li><b>Король, Дама, Валет, 10</b> — по <span style="color:#fff; font-weight:bold;">10 очков</span>.</li>
+                        <li>Остальные карты (9, 8, 7...) — по своему номиналу.</li>
+                    </ul>
+
+                    <h4 style="color:#ecc94b; margin:4px 0 0 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">🔥 КОМБИНАЦИИ ТРИПЛЕТОВ (БЬЮТ ВСЁ):</h4>
+                    <ul style="margin:0; padding-left:20px; color:#a0aec0; display:flex; flex-direction:column; gap:4px; font-size:12px;">
+                        <li><span style="color:#10b981; font-weight:bold;">3 ТУЗА (Т-Т-Т)</span> — главная комбинация игры, весит <span style="color:#fff; font-weight:bold;">33 очка</span>.</li>
+                        <li><span style="color:#3b82f6; font-weight:bold;">ЛЮБОЙ ДРУГОЙ ТРИПЛЕТ</span> (например: Д-Д-Д или 10-10-10) — весит ровно <span style="color:#fff; font-weight:bold;">34 очка</span> и бьет любые мастевые комбинации.</li>
+                    </ul>
+
+                    <h4 style="color:#ef4444; margin:4px 0 0 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">🛑 ЗАПРЕТЫ И АНТИЧИТ:</h4>
+                    <p style="margin:0; color:#a0aec0; font-size:12px;">Любые попытки взлома локальной памяти устройства через F12/ArtMoney мгновенно сжигают аккаунт на сервере Firebase благодаря защите <b>MTS Shield</b>.</p>
                 </div>
             </div>
         </div>
-
-                <!-- КАРКАС ИГРОВОГО СТОЛА С СИНЕМ СУКНОМ И КАРТАМИ ВЕЕРОМ -->
-        <div class="screen" id="screen-match" style="background:#0e1620; height: 100%;">
+                <!-- КАРКАС ИГРОВОГО СТОЛА (КРЕСТООБРАЗНАЯ ПОСАДКА ДЛЯ 4 ИГРОКОВ С ПРИВИЛЕГИЯМИ) -->
+        <div class="screen" id="screen-match" style="background:#0e1620; height: 100%; display:flex; flex-direction:column; overflow:hidden;">
             
-            <!-- Полноэкранное игровое сукно в стиле Дурака Онлайн -->
-            <div style="flex:1; background:#2c5270; position:relative; margin:0; display:flex; flex-direction:column; justify-content:space-between; padding:15px; box-sizing:border-box; box-shadow: inset 0 0 50px rgba(0,0,0,0.5);">
+            <!-- Полноэкранное сине-серое сукно под вертикальный хват пальцем -->
+            <div style="flex:1; background:#1c3144; position:relative; margin:0; display:flex; flex-direction:column; justify-content:between; padding:12px; box-sizing:border-box; box-shadow: inset 0 0 60px rgba(0,0,0,0.65);">
                 
-                <!-- ВЕРХНЯЯ ЗОНА: Профиль и карты соперника -->
-                <div style="display:flex; flex-direction:column; align-items:center; width:100%; margin-top:10px;">
-                    <!-- Квадратный аватар соперника из Дурака -->
-                    <div style="background:#162330; border:2px solid #e5e9f0; border-radius:8px; padding:4px 12px; text-align:center; min-width:90px; box-shadow:0 4px 8px rgba(0,0,0,0.3);">
-                        <div style="font-size:12px; font-weight:bold; color:#fff;" id="m-label-opp-name">Ожидание...</div>
-                        <div style="color:#ecc94b; font-size:12px; font-weight:bold;" id="m-chips-bot1">0</div>
+                <!-- 1. ВЕРХНИЙ ОППОНЕНТ (ИГРОК 3) -->
+                <div style="position:absolute; top:12px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; z-index:5;">
+                    <div style="background:#131a22; border:1px solid #434c5e; border-radius:10px; padding:4px 10px; text-align:center; min-width:85px; box-shadow:0 4px 8px rgba(0,0,0,0.4);" id="seat-opp-top">
+                        <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-top">Ожидание...</div>
+                        <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot2">0</div>
                     </div>
-                    <!-- Закрытые карты соперника веером -->
-                    <div id="m-cards-bot1" style="display:flex; justify-content:center; width:100%; height:60px; margin-top:8px; position:relative;"></div>
+                    <!-- Карты верхнего оппонента -->
+                    <div id="m-cards-bot2" style="display:flex; justify-content:center; width:60px; height:40px; margin-top:4px; position:relative;"></div>
                 </div>
 
-                <!-- ЦЕНТРАЛЬНАЯ ЗОНА: Банк стола и бабблы текущих ставок -->
-                <div style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:20px; position:relative;">
-                    <!-- Иконка пота по центру сукна -->
-                    <div style="background:rgba(0,0,0,0.4); padding:8px 16px; border-radius:20px; color:#10b981; font-weight:900; font-size:16px; border:1px solid rgba(16,185,129,0.3);">
-                        КОН: <span id="match-pot-val">0</span>
+                <!-- 2. ЛЕВЫЙ ОППОНЕНТ (ИГРОК 2) -->
+                <div style="position:absolute; left:10px; top:40%; transform:translateY(-50%); display:flex; flex-direction:row; align-items:center; gap:6px; z-index:5;">
+                    <div style="background:#131a22; border:1px solid #434c5e; border-radius:10px; padding:4px 10px; text-align:center; min-width:85px; box-shadow:0 4px 8px rgba(0,0,0,0.4);" id="seat-opp-left">
+                        <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-left">Ожидание...</div>
+                        <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot1">0</div>
                     </div>
+                    <!-- Карты левого оппонента -->
+                    <div id="m-cards-bot1" style="display:flex; flex-direction:column; justify-content:center; width:40px; height:50px; position:relative;"></div>
+                </div>
 
-                    <!-- Бабблы ставок игроков на поле -->
-                    <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-                        <div id="m-bubble-bot1" style="display:none; color:#ebcb8b; border:1px solid #ebcb8b; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:bold; background:rgba(0,0,0,0.3);">0</div>
-                        <div id="m-bubble-player" style="display:none; color:#10b981; border:1px solid #10b981; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:bold; background:rgba(0,0,0,0.3);">0</div>
+                <!-- 3. ПРАВЫЙ ОППОНЕНТ (ИГРОК 4) -->
+                <div style="position:absolute; right:10px; top:40%; transform:translateY(-50%); display:flex; flex-direction:row-reverse; align-items:center; gap:6px; z-index:5;">
+                    <div style="background:#131a22; border:1px solid #434c5e; border-radius:10px; padding:4px 10px; text-align:center; min-width:85px; box-shadow:0 4px 8px rgba(0,0,0,0.4);" id="seat-opp-right">
+                        <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-right">Ожидание...</div>
+                        <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot3">0</div>
+                    </div>
+                    <!-- Карты правого оппонента -->
+                    <div id="m-cards-bot3" style="display:flex; flex-direction:column; justify-content:center; width:40px; height:50px; position:relative;"></div>
+                </div>
+
+                <!-- ЦЕНТР СУКНА: СОЧНЫЙ ОБЩИЙ БАНК (КОН) -->
+                <div style="position:absolute; top:40%; left:50%; transform:translate(-50%, -50%); display:flex; flex-direction:column; align-items:center; gap:10px; z-index:2;">
+                    <div style="background:rgba(11,18,26,0.75); padding:10px 20px; border-radius:24px; color:#10b981; font-weight:900; font-size:18px; border:1px solid rgba(16,185,129,0.35); box-shadow:0 4px 15px rgba(0,0,0,0.4); letter-spacing:0.5px;">
+                        💰 БАНК: <span id="match-pot-val">0</span>
                     </div>
                 </div>
 
-                <!-- НИЖНЯЯ ЗОНА: Твой веер карт и управление -->
-                <div style="display:flex; flex-direction:column; align-items:center; width:100%; gap:10px;">
+                <!-- КНОПКА ДОНАТНЫХ ПРИВИЛЕГИЙ НА СУКНЕ -->
+                <button onclick="togglePrivilegeMenu()" style="position:absolute; right:12px; bottom:145px; background:#ecc94b; color:#111; border:none; width:40px; height:40px; border-radius:50%; font-size:18px; cursor:pointer; display:flex; justify-content:center; align-items:center; box-shadow:0 4px 10px rgba(236,201,75,0.3); font-weight:bold; z-index:100;">👑</button>
+
+                <!-- ВСПЛЫВАЮЩАЯ МИНИ-ПАНЕЛЬ ПРИВИЛЕГИЙ -->
+                <div id="panel-privileges" style="display:none; position:absolute; right:12px; bottom:195px; background:rgba(19,26,34,0.95); border:1px solid #ecc94b; border-radius:14px; padding:8px; flex-direction:column; gap:6px; box-shadow:0 8px 20px rgba(0,0,0,0.5); z-index:100; width:150px;">
+                    <button onclick="executePrivilege('spy')" style="background:#1c242f; color:#fff; border:none; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; text-align:left; cursor:pointer; display:flex; align-items:center; gap:6px;">👁️ Подсмотреть карту</button>
+                    <button onclick="executePrivilege('return')" style="background:#1c242f; color:#fff; border:none; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; text-align:left; cursor:pointer; display:flex; align-items:center; gap:6px;">🔄 Вернуть карту</button>
+                    <button onclick="executePrivilege('ally')" style="background:#1c242f; color:#fff; border:none; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; text-align:left; cursor:pointer; display:flex; align-items:center; gap:6px;">🤝 Купить союзника</button>
+                </div>
+
+                <!-- НИЖНЯЯ ЗОНА: ВАШ ВЕЕР КАРТ И АВАТАР -->
+                <div style="margin-top:auto; display:flex; flex-direction:column; align-items:center; width:100%; gap:6px; z-index:10;">
                     
-                    <!-- ТВОЙ ВЕЕР КАРТ (Наезжают друг на друга по CSS) -->
-                    <div style="height:115px; width:100%; display:flex; justify-content:center; align-items:flex-end; position:relative; margin-bottom:5px;">
+                    <!-- ТВОЙ ВЕЕР КАРТ -->
+                    <div style="height:110px; width:100%; display:flex; justify-content:center; align-items:flex-end; position:relative;">
                         <div id="m-cards-player" class="fan-cards-container"></div>
                     </div>
                     
-                    <!-- Твой квадратный аватар внизу -->
-                    <div style="background:#162330; border:2px solid #10b981; border-radius:8px; padding:4px 15px; text-align:center; min-width:100px; box-shadow:0 4px 8px rgba(0,0,0,0.3);" id="m-profile-box">
-                        <div id="m-label-username" style="font-size:13px; font-weight:bold; color:#fff;">Вы</div>
+                    <!-- Твой аватар по центру снизу -->
+                    <div style="background:#131a22; border:2px solid #10b981; border-radius:12px; padding:5px 16px; text-align:center; min-width:110px; box-shadow:0 4px 12px rgba(0,0,0,0.4);" id="m-profile-box">
+                        <div id="m-label-username" style="font-size:13px; font-weight:bold; color:#fff; max-width:105px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Вы</div>
                         <div style="color:#10b981; font-size:13px; font-weight:bold;" id="m-chips-player">0</div>
                     </div>
                 </div>
             </div>
 
-            <!-- ИГРОВЫЕ КНОПКИ В СТИЛЕ «БЕРУ» / «ПАС» ИЗ ДУРАКА -->
-            <div style="display:flex; gap:5px; padding:10px; background:#0e1620; border-top:1px solid #1a2330; justify-content:center; box-sizing:border-box;">
-                <button class="action-btn" id="m-btn-deal" onclick="startHandLogic()" style="background:#3b82f6; color:#fff; font-weight:bold; border:none; padding:12px; border-radius:8px; font-size:13px; cursor:pointer; flex:1;">РАЗДАЧА</button>
-                <button class="action-btn" id="m-btn-look" onclick="actionLookHand()" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:12px; border-radius:8px; font-size:13px; cursor:pointer; flex:1;">КАРТЫ</button>
-                <button class="action-btn" id="m-btn-check" onclick="actionPlayerMove('check')" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:12px; border-radius:8px; font-size:13px; cursor:pointer; flex:1;">ЧЕК</button>
-                <button class="action-btn" id="m-btn-raise" onclick="actionPlayerMove('raise')" disabled style="background:#e05656; color:#fff; border:none; padding:12px; border-radius:8px; font-size:13px; font-weight:bold; cursor:pointer; flex:1.5;">ПОДНЯТЬ +100</button>
-                <button class="action-btn" id="m-btn-fold" onclick="actionPlayerMove('fold')" disabled style="background:#2e3440; color:#fff; border:1px solid #434c5e; padding:12px; border-radius:8px; font-size:13px; cursor:pointer; flex:1;">ПАС</button>
+            <!-- ИГРОВЫЕ КНОПКИ ДЕЙСТВИЙ (ХОДЫ И СТАВКИ) -->
+            <div style="display:flex; gap:6px; padding:10px; background:#0f141c; border-top:1px solid #1e2633; justify-content:center; box-sizing:border-box;">
+                <button class="action-btn" id="m-btn-deal" onclick="startHandLogic()" style="background:#3b82f6; color:#fff; font-weight:bold; border:none; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">РАЗДАЧА</button>
+                <button class="action-btn" id="m-btn-look" onclick="actionLookHand()" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">КАРТЫ</button>
+                <button class="action-btn" id="m-btn-check" onclick="actionPlayerMove('check')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ЧЕК</button>
+                <button class="action-btn" id="m-btn-raise" onclick="actionPlayerMove('raise')" disabled style="background:#e05656; color:#fff; border:none; padding:12px 6px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer; flex:1.4;">ПОДНЯТЬ +100</button>
+                <button class="action-btn" id="m-btn-fold" onclick="actionPlayerMove('fold')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ПАС</button>
             </div>
             
-            <button onclick="exitFromOnlineRoom()" style="background:none; border:none; color:#4c566a; width:100%; text-align:center; padding:5px; font-size:11px; font-weight:bold; cursor:pointer;">СДАТЬСЯ И ВЫЙТИ СО СТОЛА</button>
+            <!-- Опция безопасного выхода -->
+            <div style="background:#0f141c; padding-bottom:8px; text-align:center;">
+                <span onclick="exitFromOnlineRoom()" style="color:#4c566a; font-size:11px; font-weight:bold; cursor:pointer; text-decoration:underline;">Сдаться и выйти со стола</span>
+            </div>
         </div>
 
 
@@ -475,6 +517,7 @@
 
                         // --- СЕТЕВОЙ ОНЛАЙН-ДВИЖОК КОМНАТ (БЕЗ АЛЕРТОВ) ---
         let currentRoomId = null;
+        let botTimerId = null; // Глобальный указатель на таймер подсадки ботов
 
 
         // Конфигурация подключения к твоей базе данных Firebase
@@ -1330,32 +1373,64 @@
             });
         }
 
-                // --- ЧАСТЬ 6: РАБОЧИЙ ПРИВАТНЫЙ ЧАТ С ДРУЗЬЯМИ ---
+                // Переключение видимости панели донатных привилегий на сукне
+        function togglePrivilegeMenu() {
+            const panel = document.getElementById('panel-privileges');
+            if (panel.style.display === 'none' || panel.style.display === '') {
+                panel.style.display = 'flex';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
 
-        // --- ЧАСТЬ 8: НАСТОЯЩИЙ ОБЛАЧНЫЙ ОНЛАЙН-ЧАТ С ДРУГОМ ---
+        // Заглушка-обработчик для вызова кастомных привилегий
+        function executePrivilege(type) {
+            console.log("Активирована донат-механика:", type);
+            // Закрываем меню после клика
+            document.getElementById('panel-privileges').style.display = 'none';
+            
+            if (type === 'spy') {
+                appendRoomSystemMessage("Система: Вы запросили подсмотр карт оппонента...");
+            } else if (type === 'return') {
+                appendRoomSystemMessage("Система: Функция возврата карты в колоду задействована...");
+            } else if (type === 'ally') {
+                appendRoomSystemMessage("Система: Предложение союза отправлено напарнику...");
+            }
+        }
+
+
+                // --- ЧАСТЬ 8: НАСТОЯЩИЙ ОБЛАЧНЫЙ ОНЛАЙН-ЧАТ С ДРУГОМ (REST-ЗАЩИЩЕННЫЙ) ---
         let activeChatRefPath = null;
 
         // Открытие живого чата с другом через Firebase
         function openFriendPrivateChat() {
             if (!selectedFriend) return;
-            
+    
             let friendNick = selectedFriend.nick;
             closeFriendInspect();
 
             // Скрываем список друзей, разворачиваем окно сообщений
             document.getElementById('friends-main-block').style.display = 'none';
             document.getElementById('private-chat-block').style.display = 'flex';
-            
-            document.getElementById('priv-chat-title').innerText = `ДИАЛОГ: ${friendNick}`;
-            
-            // Генерируем уникальный ID комнаты чата по алфавиту, чтобы у обоих игроков открывалась ОДНА папка
-            let chatRoomId = localUser.nick < friendNick ? 
-                `chat_${localUser.nick}_${friendNick}` : 
-                `chat_${friendNick}_${localUser.nick}`;
-            
+    
+            if (document.getElementById('priv-chat-title')) {
+                document.getElementById('priv-chat-title').innerText = `ДИАЛОГ: ${friendNick}`;
+            }
+    
+            // Очищаем никнеймы от спецсимволов и пробелов для безопасных URL-путей Firebase REST API
+            let safeMyNick = localUser.nick.replace(/[.#$/\[\]\s]/g, "_");
+            let safeFriendNick = friendNick.replace(/[.#$/\[\]\s]/g, "_");
+    
+            // Генерируем уникальный ID комнаты чата строго по алфавиту
+            let chatRoomId = safeMyNick < safeFriendNick ? 
+                `chat_${safeMyNick}_${safeFriendNick}` : 
+                `chat_${safeFriendNick}_${safeMyNick}`;
+    
             activeChatRefPath = 'chats/' + chatRoomId;
-            
-            // Включаем живой радар обновлений чата через твой метод .on()
+    
+            console.log("Установка безопасного соединения с чатом:", activeChatRefPath);
+    
+            // Включаем живой радар обновлений чата через метод .on()
             database.ref(activeChatRefPath).on('value', (snapshot) => {
                 const messagesData = snapshot.val();
                 const chatBox = document.getElementById('priv-chat-messages');
@@ -1368,10 +1443,12 @@
                     Object.keys(messagesData).forEach(key => {
                         let msg = messagesData[key];
                         let isMe = msg.sender === localUser.nick;
-                        
+                
                         let div = document.createElement('div');
                         div.style.marginBottom = "4px";
-                        
+                        div.style.fontSize = "13px";
+                        div.style.color = "#fff";
+                
                         if (isMe) {
                             div.innerHTML = `<strong style="color:#10b981;">Вы:</strong> ${msg.text}`;
                         } else {
@@ -1380,7 +1457,7 @@
                         chatBox.appendChild(div);
                     });
                 }
-                
+        
                 // Автоматически прокручиваем чат вниз пальцем при новом сообщении
                 chatBox.scrollTop = chatBox.scrollHeight;
             });
@@ -1393,15 +1470,19 @@
                 database.ref(activeChatRefPath).off();
                 activeChatRefPath = null;
             }
-            
+    
             document.getElementById('private-chat-block').style.display = 'none';
             document.getElementById('friends-main-block').style.display = 'flex';
-            rebuildFriendsListView();
+            if (typeof rebuildFriendsListView === "function") {
+                rebuildFriendsListView();
+            }
         }
 
         // Отправка сообщения в облачную базу Firebase в реальном времени
         function sendPrivateMessage() {
             const input = document.getElementById('priv-chat-input');
+            if (!input) return;
+    
             let text = input.value.trim();
             if (!text || !activeChatRefPath) return;
 
@@ -1411,17 +1492,20 @@
                 timestamp: Date.now()
             };
 
-            // Пушим сообщение на сервера Европы через твой родной .push() REST-клиента
+            // Пушим сообщение на сервера Европы через родной .push() REST-клиента
             database.ref(activeChatRefPath).push(newMessageData);
-            
+    
             // Очищаем поле ввода под хват пальцем
             input.value = '';
         }
 
-        // Слушаем нажатие клавиши Enter внутри поля личных сообщений
-        document.getElementById('priv-chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendPrivateMessage();
-        });
+        // Безопасная функция для обработки нажатия Enter (вызывается из HTML)
+        function checkChatEnterKey(event) {
+            if (event.key === 'Enter') {
+                sendPrivateMessage();
+            }
+        }
+
 
                 // --- ЧАСТЬ 7: ИНИЦИАЛИЗАЦИЯ И ПОДКЛЮЧЕНИЕ К ИГРОВОМУ СТОЛУ ---
 
@@ -2077,7 +2161,7 @@
             document.getElementById('val-trinki').innerText = "0";
         });
 
-        // Создание стола с динамическими параметрами
+        // Создание стола с динамическими параметрами (Расширение до 4 мест)
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит-блокировка
@@ -2090,34 +2174,37 @@
 
             currentRoomId = "room_" + currentUserId;
 
-            // Архитектура стола под разное количество людей
+            // Новая расширенная архитектура стола под 2, 3 или 4 человека
             let roomData = {
                 roomId: currentRoomId,
                 ante: ante,
                 mode: mode,
                 maxPlayers: maxPlayers,
                 status: "waiting", // Статус: ждем людей
-                playersCount: 1,   // Мы уже внутри стола
-                
+                playersCount: 1,   // Создатель уже внутри
+        
                 // Данные создателя (Игрок 1)
                 p1_id: currentUserId,
                 p1_name: localUser.nick,
                 p1_chips: res.chips,
-                
-                // Ячейки для Игрока 2 и Игрока 3
+        
+                // Ячейки для остальных участников (Игроки 2, 3 и 4)
                 p2_id: "", p2_name: "", p2_chips: 0,
-                p3_id: "", p3_name: "", p3_chips: 0
+                p3_id: "", p3_name: "", p3_chips: 0,
+                p4_id: "", p4_name: "", p4_chips: 0
             };
 
             console.log("Регистрация стола на сервере:", currentRoomId);
-            
+    
             database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
                 if (!error) {
+                    // Мгновенно перекидываем создателя на сукно матча
                     enterOnlineMatchLayout(roomData);
-                    listenRoomStatusChanges(currentRoomId); // Включаем слежку за новыми подключениями
+                    listenRoomStatusChanges(currentRoomId); // Включаем сетевую слежку
                 }
             });
         }
+
 
         // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
         function listenActiveRooms() {
@@ -2175,82 +2262,121 @@
             });
         }
 
-        // Посадка за чужой выбранный стол из списка
+        // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
         function connectToOnlineRoom(roomId) {
             let res = getSecureResources();
-            if (res.corrupted) return;
+            if (res.corrupted) return; // MTS Античит
 
             database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                 let room = snapshot.val();
                 if (!room || room.status !== 'waiting') return;
-                if (res.chips < room.ante) return;
+                if (res.chips < room.ante) return; // Проверка баланса под анте стола
 
-                let count = room.playersCount;
                 let updates = {};
+                let targetSlot = 0;
 
-                if (count === 1) {
-                    // Мы садимся вторыми (Игрок 2)
+                // Ищем свободное кресло по порядку
+                if (!room.p2_id) {
+                    targetSlot = 2;
                     updates.p2_id = currentUserId;
                     updates.p2_name = localUser.nick;
                     updates.p2_chips = res.chips;
-                    updates.playersCount = 2;
-                    
-                    // Если стол был рассчитан всего на двоих — переводим в статус игры
-                    if (room.maxPlayers === 2) {
-                        updates.status = "playing";
-                    }
-                } else if (count === 2 && room.maxPlayers === 3) {
-                    // Мы садимся третьими (Игрок 3)
+                } else if (!room.p3_id && room.maxPlayers >= 3) {
+                    targetSlot = 3;
                     updates.p3_id = currentUserId;
                     updates.p3_name = localUser.nick;
                     updates.p3_chips = res.chips;
-                    updates.playersCount = 3;
-                    updates.status = "playing"; // Стол забит полностью, запускаем кон
+                } else if (!room.p4_id && room.maxPlayers >= 4) {
+                    targetSlot = 4;
+                    updates.p4_id = currentUserId;
+                    updates.p4_name = localUser.nick;
+                    updates.p4_chips = res.chips;
                 } else {
-                    return; // Мест нет
+                    return; // Все доступные места по лимиту стола уже заняты
                 }
 
+                // Считаем новое общее количество игроков на основе занятых ячеек
+                let currentPlayersCount = room.playersCount + 1;
+                updates.playersCount = currentPlayersCount;
+
+                // Если стол полностью забит под лимит настроек — запускаем кон матча
+                if (currentPlayersCount >= room.maxPlayers) {
+                    updates.status = "playing";
+                }
+
+                // Отправляем обновления на сервер Firebase
                 database.ref('rooms/' + roomId).update(updates).then(() => {
                     currentRoomId = roomId;
-                    // Скачиваем обновленную карточку стола и заходим на сукно
+                    
+                    // Скачиваем обновленную карточку стола и заходим на синее сукно
                     database.ref('rooms/' + roomId).once('value').then((snap) => {
                         enterOnlineMatchLayout(snap.val());
-                        listenRoomStatusChanges(currentRoomId);
+                        listenRoomStatusChanges(currentRoomId); // Включаем сетевой радар изменений стола
                     });
                 });
             });
         }
 
-        // Переключение экрана смартфона на игровое сукно стола
+        // Универсальное переключение экрана смартфона на игровое сукно (для 4 игроков)
         function enterOnlineMatchLayout(room) {
             document.getElementById('screen-dashboard').style.display = 'none';
             document.getElementById('screen-match').style.display = 'flex';
             
             document.getElementById('match-pot-val').innerText = "0";
-            document.getElementById('match-chat-messages').innerHTML = '';
+            if (document.getElementById('match-chat-messages')) {
+                document.getElementById('match-chat-messages').innerHTML = '';
+            }
             
-            // Настраиваем имена игроков на вертикальном столе мультиплеера
-            if (room.creatorId === currentUserId) {
-                // Если создатель — ты снизу, соперник сверху
-                document.getElementById('m-label-username').innerText = room.creator;
-                document.getElementById('m-chips-player').innerText = room.creatorChips;
+            // Массив всех возможных кресел в базе данных комнаты
+            const allSeats = [
+                { id: room.p1_id, name: room.p1_name, chips: room.p1_chips },
+                { id: room.p2_id, name: room.p2_name, chips: room.p2_chips },
+                { id: room.p3_id, name: room.p3_name, chips: room.p3_chips },
+                { id: room.p4_id, name: room.p4_name, chips: room.p4_chips }
+            ];
+
+            // Находим, в какое именно кресло сели мы сами
+            const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
+            
+            if (mySeatIndex !== -1) {
+                // 1. Выводим наши данные в нижний (главный) аватар игрока
+                document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
+                document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
                 
-                document.getElementById('m-chips-bot1').parentElement.style.display = 'block';
-                document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.guest ? room.guest : "Ожидание...";
-                document.getElementById('m-chips-bot1').innerText = room.guest ? room.guestChips : "0";
-                
-                // Прячем третьего лишнего бота, так как играем 1 на 1
-                document.getElementById('m-chips-bot2').parentElement.style.display = 'none';
-            } else {
-                // Если ты зашел гостем — ты снизу, создатель сверху
-                document.getElementById('m-label-username').innerText = room.guest;
-                document.getElementById('m-chips-player').innerText = room.guestChips;
-                
-                document.getElementById('m-chips-bot1').parentElement.style.display = 'block';
-                document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.creator;
-                document.getElementById('m-chips-bot1').innerText = room.creatorChips;
-                
-                document.getElementById('m-chips-bot2').parentElement.style.display = 'none';
+                // 2. Собираем список оппонентов, сдвигая массив так, чтобы мы были точкой отсчета
+                let opponents = [];
+                for (let i = 1; i < 4; i++) {
+                    let opponentIndex = (mySeatIndex + i) % 4;
+                    opponents.push(allSeats[opponentIndex]);
+                }
+
+                // 3. Распределяем оставшихся оппонентов по верхним и боковым аватаркам
+                // Элемент m-chips-bot1 (будет левым или верхним оппонентом)
+                if (opponents[0] && opponents[0].id) {
+                    document.getElementById('m-chips-bot1').parentElement.style.display = 'block';
+                    document.getElementById('m-chips-bot1').previousElementSibling.innerText = opponents[0].name;
+                    document.getElementById('m-chips-bot1').innerText = opponents[0].chips;
+                } else {
+                    // Если место пустует и лимит стола позволяет — пишем Ожидание
+                    document.getElementById('m-chips-bot1').parentElement.style.display = room.maxPlayers >= 2 ? 'block' : 'none';
+                    if (room.maxPlayers >= 2) {
+                        document.getElementById('m-chips-bot1').previousElementSibling.innerText = "Ожидание...";
+                        document.getElementById('m-chips-bot1').innerText = "0";
+                    }
+                }
+
+                // Элемент m-chips-bot2 (будет верхним или правым оппонентом)
+                if (opponents[1] && opponents[1].id) {
+                    document.getElementById('m-chips-bot2').parentElement.style.display = 'block';
+                    document.getElementById('m-chips-bot2').previousElementSibling.innerText = opponents[1].name;
+                    document.getElementById('m-chips-bot2').innerText = opponents[1].chips;
+                } else {
+                    document.getElementById('m-chips-bot2').parentElement.style.display = room.maxPlayers >= 3 ? 'block' : 'none';
+                    if (room.maxPlayers >= 3) {
+                        document.getElementById('m-chips-bot2').previousElementSibling.innerText = "Ожидание...";
+                        document.getElementById('m-chips-bot2').innerText = "0";
+                    }
+                }
             }
 
             appendRoomSystemMessage(`Вы вошли за стол. Анте: ${room.ante}. Режим: ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}`);
@@ -2262,16 +2388,76 @@
             }
         }
 
-        // Слежка за статусом стола (Нужна создателю, чтобы поймать момент входа гостя)
+        // Сетевая слежка за столом и плавная подсадка ботов (точечно для Создателя)
         function listenRoomStatusChanges(roomId) {
+            // Очищаем старый таймер ботов при перезапуске слежки
+            if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+
             database.ref('rooms/' + roomId).on('value', (snapshot) => {
                 let room = snapshot.val();
-                if (!room) return;
+                if (!room) {
+                    if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+                    return;
+                }
 
-                // Если кто-то зашел к нам за стол — обновляем HUD фишек и ника оппонента сверху
-                if (room.status === 'playing' && room.creatorId === currentUserId) {
-                    document.getElementById('m-chips-bot1').previousElementSibling.innerText = room.guest;
-                    document.getElementById('m-chips-bot1').innerText = room.guestChips;
+                // Вызываем универсальный рендер мест, чтобы все видели, кто сел за стол
+                enterOnlineMatchLayout(room);
+
+                // ЛОГИКА БОТОВ: Расчетом занимается строго Создатель стола и только в режиме ожидания
+                if (room.p1_id === currentUserId && room.status === "waiting") {
+                    
+                    // Если лимит мест еще не достигнут — взводим или обновляем плавный таймер
+                    if (room.playersCount < room.maxPlayers) {
+                        
+                        // Сбрасываем предыдущий тикающий таймер, чтобы избежать наслоений
+                        if (botTimerId) clearTimeout(botTimerId);
+
+                        // Первая фора для друзей — 30 сек, если кто-то уже сидит — бот зайдет быстрее (через 15 сек)
+                        let delay = (room.playersCount === 1) ? 30000 : 15000;
+
+                        botTimerId = setTimeout(() => {
+                            // Проверяем актуальное состояние комнаты перед инъекцией бота
+                            database.ref('rooms/' + roomId).once('value').then((freshSnap) => {
+                                let freshRoom = freshSnap.val();
+                                if (!freshRoom || freshRoom.status !== "waiting" || freshRoom.playersCount >= freshRoom.maxPlayers) return;
+
+                                // Пул реалистичных никнеймов под обычных игроков
+                                const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K", "Dmitry_Poker", "Shadow", "Panda_Z", "Kasparov", "WildCard", "Tornado"];
+                                let randomName = humanNames[Math.floor(Math.random() * humanNames.length)];
+                                let randomChips = Math.floor(Math.random() * (3500 - 1200 + 1)) + 1200; // Стек от 1200 до 3500
+
+                                let updates = {};
+                                // Ищем первое пустующее кресло для бота
+                                if (!freshRoom.p2_id) {
+                                    updates.p2_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                    updates.p2_name = randomName;
+                                    updates.p2_chips = randomChips;
+                                } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
+                                    updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                    updates.p3_name = randomName;
+                                    updates.p3_chips = randomChips;
+                                } else if (!freshRoom.p4_id && freshRoom.maxPlayers >= 4) {
+                                    updates.p4_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                    updates.p4_name = randomName;
+                                    updates.p4_chips = randomChips;
+                                }
+
+                                let nextPlayersCount = freshRoom.playersCount + 1;
+                                updates.playersCount = nextPlayersCount;
+
+                                // Если этот бот забил последнее доступное место — переводим стол в режим игры
+                                if (nextPlayersCount >= freshRoom.maxPlayers) {
+                                    updates.status = "playing";
+                                }
+
+                                // Пушим бота в Firebase
+                                database.ref('rooms/' + roomId).update(updates);
+                            });
+                        }, delay);
+                    }
+                } else {
+                    // Если статус изменился на "playing" или мы не хост — тушим таймер подсадки
+                    if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                 }
             });
         }
