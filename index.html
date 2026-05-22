@@ -2,19 +2,30 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>TRINDOC онлайн</title>
     <style>
         /* Жесткий зажим интерфейса под вертикальный экран смартфона (9:16) */
+        html {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Запрещает браузерные свайпы и зум экрана пальцами */
+        }
         body {
             background-color: #0b0c10;
             margin: 0; padding: 0;
             display: flex; justify-content: center; align-items: center;
-            height: 100vh; width: 100vw;
+            /* Заменяем vh/vw на жесткие проценты fixed-контейнера html */
+            height: 100%; width: 100%;
+            position: fixed;
+            top: 0; left: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: #e2e8f0;
             overflow: hidden;
             user-select: none;
+            touch-action: none; /* Полная блокировка прыжков экрана в Safari/Chrome */
         }
 
         #phone-wrapper {
@@ -1832,19 +1843,25 @@
             return Math.max(suitsCount['♠'], suitsCount['♣'], suitsCount['♥'], suitsCount['♦']);
         }
 
-               // Сетевая раздача 3-х карт на 4 кресла (Запускается строго Создателем стола по кнопке)
+           // Сетевая раздача 3-х карт на 4 кресла (Доступна Хосту с любого устройства)
         function startHandLogic() {
-            if (!currentRoomId || currentRoomId !== "room_" + currentUserId) return;
+            if (!currentRoomId) return;
 
             // Скачиваем актуальное состояние стола перед началом раздачи
             database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
                 let room = snapshot.val();
                 if (!room || room.status !== 'waiting' && room.status !== 'showdown') return;
         
+                // ЖЕЛЕЗНАЯ ПРОВЕРКА ХОСТА: запускать раздачу может только реальный хозяин стола (p1)
+                if (room.p1_id !== currentUserId) {
+                    console.log("Вы не являетесь создателем этого стола. Раздача заблокирована.");
+                    return;
+                }
+        
                 let res = getSecureResources();
                 if (res.corrupted) return; // MTS Античит
 
-                // 1. Генерируем сочную колоду
+                // 1. Генерируем сочную колоду Секи
                 let fullDeck = generateOnlineDeck();
                 let updates = {
                     status: "playing",
@@ -1868,16 +1885,16 @@
                 
                         updates.pot += room.ante; // Списываем обязательное анте в банк
                 
-                        // Если раздаем себе (Хосту) — локально списываем фишки через античит
+                        // Если раздаем себе (Создателю на ПК или Телефоне) — локально списываем фишки через античит
                         if (room[seat + '_id'] === currentUserId) {
                             if (res.chips >= room.ante) {
                                 res.chips -= room.ante;
                                 setSecureResources(res.chips, res.trinki);
                                 updates[seat + '_chips'] = res.chips;
                             }
-                        } else if (room[seat + '_id'].startsWith('bot_')) {
-                            // Если это бот — списываем анте из его серверного стека
-                            updates[seat + '_chips'] = Math.max(0, room[seat + '_chips'] - room.ante);
+                        } else {
+                            // Если это бот или другой реальный игрок — списываем анте из его серверного стека комнаты
+                            updates[seat + '_chips'] = Math.max(0, (room[seat + '_chips'] || 0) - room.ante);
                         }
                     } else {
                         // Если кресло пустое — очищаем его игровые параметры
@@ -1889,13 +1906,14 @@
 
                 console.log("Облачный старт раздачи! Банк собран:", updates.pot);
         
-                // Пушим раздачу карт напрямую на сервера Европы в Firebase
+                // Пушим раздачу карт напрямую на сервера Европы в Firebase Realtime Database
                 database.ref('rooms/' + currentRoomId).update(updates).then(() => {
                     saveUserProfileToCloud();
                     refreshUiWalletsAndStyles();
                 });
             });
         }
+
 
                 // Сетевая кнопка «Посмотреть карты» — выход из режима «Вслепую»
         function actionLookHand() {
@@ -1931,10 +1949,17 @@
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
             
-            // Кнопка раздачи доступна только Создателю стола и только когда кон завершен
+            // Умная настройка кнопки раздачи карт на сукне (Фикс под твинки и телефоны)
             const dealBtn = document.getElementById('m-btn-deal');
             if (dealBtn) {
-                dealBtn.disabled = (currentRoomId !== "room_" + currentUserId || room.status === "playing");
+                // Кнопка физически видна только Хосту стола (p1) и доступна только вне активного раунда
+                if (room.p1_id === currentUserId) {
+                    dealBtn.style.display = "block";
+                    dealBtn.disabled = (room.status === "playing");
+                } else {
+                    // Гости кнопку не видят вообще, для них кон стартует автоматически по сети
+                    dealBtn.style.display = "none";
+                }
             }
 
             // Массив всех 4 кресел в базе комнаты
@@ -2650,7 +2675,7 @@
             });
         }
 
-             // Универсальное распределение игроков по 4 креслам крестообразного стола матча
+        // Универсальное распределение игроков по 4 креслам крестообразного стола матча
         function enterOnlineMatchLayout(room) {
             // Мгновенно переключаем экраны телефона: прячем лобби, включаем сукно
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
@@ -2683,7 +2708,7 @@
                     opponents.push(allSeats[opponentIndex]);
                 }
 
-                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Первый по часовой стрелке от нас)
+                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 0 в массиве)
                 if (opponents[0] && opponents[0].name) {
                     document.getElementById('seat-opp-left').style.display = 'block';
                     document.getElementById('m-label-opp-name-left').innerText = opponents[0].name;
@@ -2694,7 +2719,7 @@
                     document.getElementById('m-chips-bot1').innerText = "0";
                 }
 
-                // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Второй по часовой стрелке от нас)
+                // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Индекс 1 в массиве)
                 if (opponents[1] && opponents[1].name) {
                     document.getElementById('seat-opp-top').style.display = 'block';
                     document.getElementById('m-label-opp-name-top').innerText = opponents[1].name;
@@ -2705,7 +2730,7 @@
                     document.getElementById('m-chips-bot2').innerText = "0";
                 }
 
-                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Третий по часовой стрелке от нас)
+                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 2 в массиве)
                 if (opponents[2] && opponents[2].name) {
                     document.getElementById('seat-opp-right').style.display = 'block';
                     document.getElementById('m-label-opp-name-right').innerText = opponents[2].name;
