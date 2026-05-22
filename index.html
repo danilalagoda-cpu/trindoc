@@ -377,7 +377,7 @@
             </div>
         </div>
           <!-- КАРКАС ИГРОВОГО СТОЛА (КРЕСТООБРАЗНАЯ ПОСАДКА ДЛЯ 4 ИГРОКОВ С ФЛАЖКОМ И ВСПЛЫВАЮЩИМ ОКНОМ ВЫХОДА) -->
-        <div class="screen" id="screen-match" style="background:#0e1620; height: 100%; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="screen" id="screen-match" style="background:#0e1620; height: 100%; display:none; flex-direction:column; overflow:hidden;">
             
             <!-- Полноэкранное сине-серое сукно под вертикальный хват пальцем -->
             <div style="flex:1; background:#1c3144; position:relative; margin:0; display:flex; flex-direction:column; justify-content:between; padding:12px; box-sizing:border-box; box-shadow: inset 0 0 60px rgba(0,0,0,0.65);">
@@ -2330,6 +2330,7 @@
                         refreshUiWalletsAndStyles();
                     });
                 }
+            }
         });
 
 
