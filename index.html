@@ -1274,6 +1274,8 @@
         // Изменение никнейма и сохранение аватарки в Firebase при клике «СОХРАНИТЬ»
         function triggerChangeNick() {
             const input = document.getElementById('input-change-nick');
+            if (!input) return;
+    
             let txt = input.value.trim();
             let isChanged = false;
 
@@ -1292,18 +1294,73 @@
             // 3. Если хоть что-то изменилось — пушим обновленный профиль в облако Firebase
             if (isChanged) {
                 console.log("Сохранение обновленных данных профиля (Ник/Аватар) в облако...");
-                
-                // Вызываем вашу встроенную функцию отправки данных в Firebase
+        
+                // Вызываем встроенную функцию отправки данных в Firebase
                 saveUserProfileToCloud(); 
-                
-                // Перерисовываем интерфейсы
+        
+                // Перерисовываем интерфейсы лобби
                 refreshUiWalletsAndStyles();
                 if (typeof rebuildProfileSubTabs === "function") rebuildProfileSubTabs();
                 if (typeof rebuildStoreCards === "function") rebuildStoreCards();
-                
-                appendRoomSystemMessage("Система: Данные профиля успешно сохранены!");
+        
+                // ФИКС: Обычный лог лобби вместо вызова appendRoomSystemMessage, который ломал код
+                console.log("Система: Данные профиля успешно сохранены в Firebase!");
             }
         }
+
+        // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
+        function triggerCreateOnlineRoom() {
+            let res = getSecureResources();
+            if (res.corrupted) return; // MTS Античит-блокировка
+
+            let mode = document.getElementById('select-mode').value;
+            let ante = parseInt(document.getElementById('input-ante').value) || 50;
+            let maxPlayers = parseInt(document.getElementById('select-max-players').value) || 2;
+
+            if (res.chips < ante) return; // Защита от нулевого баланса
+
+            currentRoomId = "room_" + currentUserId;
+
+            // Новая расширенная архитектура стола под 2, 3 или 4 человека
+            let roomData = {
+                roomId: currentRoomId,
+                ante: ante,
+                mode: mode,
+                maxPlayers: maxPlayers,
+                status: "waiting", // Статус: ждем людей
+                playersCount: 1,   // Создатель уже внутри
+
+                // Данные создателя (Игрок 1)
+                p1_id: currentUserId,
+                p1_name: localUser.nick,
+                p1_chips: res.chips,
+
+                // Ячейки для остальных участников (Игроки 2, 3 и 4)
+                p2_id: "", p2_name: "", p2_chips: 0,
+                p3_id: "", p3_name: "", p3_chips: 0,
+                p4_id: "", p4_name: "", p4_chips: 0
+            };
+
+            console.log("Регистрация стола на сервере:", currentRoomId);
+  
+            // БРОНЕБОЙНЫЙ ФИКС: Мгновенно переключаем экраны, не дожидаясь колбэков от сети
+            enterOnlineMatchLayout(roomData);
+  
+            // Сразу включаем сетевую слежку за комнатой и плавных ботов
+            listenRoomStatusChanges(currentRoomId); 
+
+            // Пушим данные стола в Firebase в фоновом режиме по сети
+            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
+                if (error) {
+                    console.error("Критическая ошибка синхронизации стола с Firebase:", error);
+                    if (typeof exitFromOnlineRoom === "function") exitFromOnlineRoom();
+                } else {
+                    console.log("Стол успешно зафиксирован на европейском сервере.");
+                }
+            });
+        }
+
+
 
                 // --- ЧАСТЬ 5: ДРУЗЬЯ, УДАЛЕНИЕ И ПОДАРКИ С АНТИЧИТОМ ---
 
@@ -2238,11 +2295,11 @@
                 if (!room || room.status !== 'showdown') return;
 
                 const seats = ['p1', 'p2', 'p3', 'p4'];
-                
+        
                 let winnerSeatKey = null;
                 let winnerId = null;
                 let winnerName = "";
-                
+        
                 // Временные переменные для поиска абсолютного лидера
                 let maxScore = -1;
                 let bestHandCards = null;
@@ -2254,7 +2311,7 @@
                     if (room[s + '_id'] && room[s + '_status'] === 'active') {
                         let currentCards = room[s + '_cards'] || [];
                         let score = calculateOnlineHandScore(currentCards);
-                        
+                
                         if (score > maxScore) {
                             // Нашли руку, которая сильнее просто по базовым очкам
                             maxScore = score;
@@ -2299,7 +2356,7 @@
 
                 if (winnerSeatKey) {
                     appendRoomSystemMessage(`ВСПРЫТИЕ! Победа по старшинству карт: ${winnerName} (${maxScore} оч.)! Выигрыш: +${room.pot} фишек.`);
-                    
+            
                     let updates = {
                         status: "waiting", // Возвращаем стол в ожидание нового кона
                         pot: 0,
@@ -2330,7 +2387,8 @@
                         refreshUiWalletsAndStyles();
                     });
                 }
-        });
+            }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Теперь блок .then() закрыт корректно
+        } // <-- ЖЕЛЕЗНЫЙ ФИКС: Теперь сама функция полностью закрыта фигурной скобкой
 
 
         // --- ЛОГИКА ОТПРАВКИ И ОТОБРАЖЕНИЯ ЧАТА МАТЧА ---
@@ -2480,78 +2538,6 @@
             if (document.getElementById('val-chips')) document.getElementById('val-chips').innerText = "0";
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
-
-              // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
-        function triggerCreateOnlineRoom() {
-            let res = getSecureResources();
-            if (res.corrupted) return; // MTS Античит-блокировка
-
-            let mode = document.getElementById('select-mode').value;
-            let ante = parseInt(document.getElementById('input-ante').value) || 50;
-            let maxPlayers = parseInt(document.getElementById('select-max-players').value) || 2;
-
-            if (res.chips < ante) return; // Защита от нулевого баланса
-
-            currentRoomId = "room_" + currentUserId;
-
-            // Новая расширенная архитектура стола под 2, 3 или 4 человека
-            let roomData = {
-                roomId: currentRoomId,
-                ante: ante,
-                mode: mode,
-                maxPlayers: maxPlayers,
-                status: "waiting", // Статус: ждем людей
-                playersCount: 1,   // Создатель уже внутри
-
-                // Данные создателя (Игрок 1)
-                p1_id: currentUserId,
-                p1_name: localUser.nick,
-                p1_chips: res.chips,
-
-                // Ячейки для остальных участников (Игроки 2, 3 и 4)
-                p2_id: "", p2_name: "", p2_chips: 0,
-                p3_id: "", p3_name: "", p3_chips: 0,
-                p4_id: "", p4_name: "", p4_chips: 0
-            }; // <-- ЖЕЛЕЗНЫЙ ФИКС: Сюда добавлена пропущенная закрывающая скобка!
-
-            console.log("Регистрация стола на сервере:", currentRoomId);
-  
-            // БРОНЕБОЙНЫЙ ФИКС: Мгновенно переключаем экраны, не дожидаясь колбэков от сети
-            enterOnlineMatchLayout(roomData);
-  
-            // Сразу включаем сетевую слежку за комнатой и плавных ботов
-            listenRoomStatusChanges(currentRoomId); 
-
-            // Пушим данные стола в Firebase в фоновом режиме по сети
-            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
-                if (error) {
-                    console.error("Критическая ошибка синхронизации стола с Firebase:", error);
-                    if (typeof exitFromOnlineRoom === "function") exitFromOnlineRoom();
-                } else {
-                    console.log("Стол успешно зафиксирован на европейском сервере.");
-                }
-            });
-        }
-
-            console.log("Регистрация стола на сервере:", currentRoomId);
-    
-            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
-                if (!error) {
-                    // ЖЕЛЕЗНЫЙ ФИКС АВТОЗАХОДА: Скачиваем чистый слепок стола с Firebase, чтобы рендер прошел без ошибок
-                    database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
-                        let freshRoomData = snapshot.val();
-                
-                        // Мгновенно переключаем экран смартфона и садимся на синее сукно
-                        enterOnlineMatchLayout(freshRoomData);
-                
-                        // Включаем сетевую слежку за комнатой и запускаем таймер плавных ботов
-                        listenRoomStatusChanges(currentRoomId); 
-                    });
-                } else {
-                    alert("Ошибка создания стола в Firebase! Проверьте вкладку Rules в консоли.");
-                }
-            });
-        }
 
         // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
         function listenActiveRooms() {
@@ -2762,7 +2748,7 @@
             return deck;
         }
 
-            // Сетевая слежка за столом и плавная подсадка ботов (точечно для Создателя)
+         // Сетевая слежка за столом и плавная подсадка ботов (точечно для Создателя)
         function listenRoomStatusChanges(roomId) {
             // Очищаем старый таймер ботов при перезапуске слежки
             if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
@@ -2779,10 +2765,10 @@
 
                 // ЛОГИКА БОТОВ: Расчетом занимается строго Создатель стола и только в режиме ожидания
                 if (room.p1_id === currentUserId && room.status === "waiting") {
-                
+        
                     // Если лимит мест еще не достигнут — взводим или обновляем плавный таймер
                     if (room.playersCount < room.maxPlayers) {
-                    
+            
                         // Сбрасываем предыдущий тикающий таймер, чтобы избежать наслоений
                         if (botTimerId) clearTimeout(botTimerId);
 
@@ -2826,8 +2812,8 @@
 
                                 // Пушим бота в Firebase
                                 database.ref('rooms/' + roomId).update(updates);
-                            });
-                        }, delay);
+                            }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли колбэк метода .then()
+                        }, delay); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли круглую скобку setTimeout()
                     }
                 } else {
                     // Если статус изменился на "playing" или мы не хост — тушим таймер подсадки
@@ -2836,8 +2822,7 @@
             });
         }
 
-
-        // Выход из комнаты с автоматическим закрытием стола или освобождением места
+         // Выход из комнаты с автоматическим закрытием стола или освобождением места
         function exitFromOnlineRoom() {
             if (!currentRoomId) return;
 
@@ -2852,10 +2837,13 @@
 
             // Проверяем, являемся ли мы создателем стола (p1)
             if (currentRoomId === "room_" + currentUserId) {
-                console.log("Хост покинул стол. Полное удаление комнаты:", currentRoomId);
-                database.ref('rooms/' + currentRoomId).remove();
-                currentRoomId = null;
-                proceedToLobbyInterface();
+                console.log("Хост покинул стол. Полное удаление комнаты через REST-сейв:", currentRoomId);
+                
+                // ЖЕЛЕЗНЫЙ ФИКС: Заменяем .remove() на .set(null) для полной очистки ветки в Firebase Realtime DB
+                database.ref('rooms/' + currentRoomId).set(null).then(() => {
+                    currentRoomId = null;
+                    proceedToLobbyInterface();
+                });
             } else {
                 // Если выходит гость — скачиваем актуальный стол, чтобы узнать, в каком мы кресле
                 database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
