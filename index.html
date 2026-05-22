@@ -2439,7 +2439,7 @@
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
 
-              // Создание стола с динамическими параметрами (Полный фикс автозахода на сукно)
+             // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит-блокировка
@@ -2460,17 +2460,37 @@
                 maxPlayers: maxPlayers,
                 status: "waiting", // Статус: ждем людей
                 playersCount: 1,   // Создатель уже внутри
-        
+
                 // Данные создателя (Игрок 1)
                 p1_id: currentUserId,
                 p1_name: localUser.nick,
                 p1_chips: res.chips,
-        
+
                 // Ячейки для остальных участников (Игроки 2, 3 и 4)
                 p2_id: "", p2_name: "", p2_chips: 0,
                 p3_id: "", p3_name: "", p3_chips: 0,
                 p4_id: "", p4_name: "", p4_chips: 0
             };
+
+            console.log("Регистрация стола на сервере:", currentRoomId);
+    
+            // БРОНЕБОЙНЫЙ ФИКС: Мгновенно переключаем экраны, не дожидаясь колбэков от сети
+            enterOnlineMatchLayout(roomData);
+    
+            // Сразу включаем сетевую слежку за комнатой и плавных ботов
+            listenRoomStatusChanges(currentRoomId); 
+
+            // Пушим данные стола в Firebase в фоновом режиме по сети
+            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
+                if (error) {
+                    console.error("Критическая ошибка синхронизации стола с Firebase:", error);
+                    if (typeof exitFromOnlineRoom === "function") exitFromOnlineRoom();
+                } else {
+                    console.log("Стол успешно зафиксирован на европейском сервере.");
+                }
+            });
+        }
+
 
             console.log("Регистрация стола на сервере:", currentRoomId);
     
