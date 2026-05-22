@@ -359,19 +359,33 @@
                 </div>
             </div>
         </div>
-                <!-- КАРКАС ИГРОВОГО СТОЛА (КРЕСТООБРАЗНАЯ ПОСАДКА ДЛЯ 4 ИГРОКОВ С ПРИВИЛЕГИЯМИ) -->
+          <!-- КАРКАС ИГРОВОГО СТОЛА (КРЕСТООБРАЗНАЯ ПОСАДКА ДЛЯ 4 ИГРОКОВ С ФЛАЖКОМ И ВСПЛЫВАЮЩИМ ОКНОМ ВЫХОДА) -->
         <div class="screen" id="screen-match" style="background:#0e1620; height: 100%; display:flex; flex-direction:column; overflow:hidden;">
             
             <!-- Полноэкранное сине-серое сукно под вертикальный хват пальцем -->
             <div style="flex:1; background:#1c3144; position:relative; margin:0; display:flex; flex-direction:column; justify-content:between; padding:12px; box-sizing:border-box; box-shadow: inset 0 0 60px rgba(0,0,0,0.65);">
                 
+                <!-- КНОПКА-ФЛАЖОК МЕНЮ ВЕРХНИЙ ЛЕВЫЙ УГОЛ СУКНА -->
+                <button onclick="toggleExitConfirmationModal(true)" style="position:absolute; top:12px; left:12px; background:rgba(19,26,34,0.75); border:1px solid #434c5e; color:#a0aec0; width:36px; height:36px; border-radius:8px; font-size:16px; cursor:pointer; display:flex; justify-content:center; align-items:center; box-shadow:0 4px 8px rgba(0,0,0,0.3); z-index:100;">🏳️</button>
+
+                <!-- ВСПЛЫВАЮЩЕЕ ОКНО ПОДТВЕРЖДЕНИЯ ВЫХОДА -->
+                <div id="modal-exit-confirm" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(11,12,16,0.85); z-index:2000; justify-content:center; align-items:center; padding:20px; box-sizing:border-box;">
+                    <div style="background:#1f232c; border:2px solid #bf616a; padding:20px; border-radius:16px; width:100%; max-width:280px; display:flex; flex-direction:column; gap:14px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,0.6);">
+                        <div style="font-size:28px;">⚠️</div>
+                        <div style="font-size:13px; font-weight:bold; color:#fff; line-height:1.4;">Вы хотите выйти из стола? Фишки будут списаны в любом случае.</div>
+                        <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+                            <button onclick="executeForcedExitFromRoom()" style="background:#bf616a; color:#fff; border:none; padding:12px; border-radius:8px; font-weight:bold; font-size:12px; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;">Сдаться и выйти</button>
+                            <button onclick="toggleExitConfirmationModal(false)" style="background:#2e3440; color:#a0aec0; border:1px solid #434c5e; padding:10px; border-radius:8px; font-weight:bold; font-size:12px; cursor:pointer;">ВЕРНУТЬСЯ К ИГРЕ</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 1. ВЕРХНИЙ ОППОНЕНТ (ИГРОК 3) -->
                 <div style="position:absolute; top:12px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; z-index:5;">
                     <div style="background:#131a22; border:1px solid #434c5e; border-radius:10px; padding:4px 10px; text-align:center; min-width:85px; box-shadow:0 4px 8px rgba(0,0,0,0.4);" id="seat-opp-top">
                         <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-top">Ожидание...</div>
                         <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot2">0</div>
                     </div>
-                    <!-- Карты верхнего оппонента -->
                     <div id="m-cards-bot2" style="display:flex; justify-content:center; width:60px; height:40px; margin-top:4px; position:relative;"></div>
                 </div>
 
@@ -381,7 +395,6 @@
                         <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-left">Ожидание...</div>
                         <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot1">0</div>
                     </div>
-                    <!-- Карты левого оппонента -->
                     <div id="m-cards-bot1" style="display:flex; flex-direction:column; justify-content:center; width:40px; height:50px; position:relative;"></div>
                 </div>
 
@@ -391,7 +404,6 @@
                         <div style="font-size:11px; font-weight:bold; color:#fff; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="m-label-opp-name-right">Ожидание...</div>
                         <div style="color:#ecc94b; font-size:11px; font-weight:bold;" id="m-chips-bot3">0</div>
                     </div>
-                    <!-- Карты правого оппонента -->
                     <div id="m-cards-bot3" style="display:flex; flex-direction:column; justify-content:center; width:40px; height:50px; position:relative;"></div>
                 </div>
 
@@ -428,18 +440,13 @@
                 </div>
             </div>
 
-            <!-- ИГРОВЫЕ КНОПКИ ДЕЙСТВИЙ (ХОДЫ И СТАВКИ) -->
+                        <!-- ИГРОВЫЕ КНОПКИ ДЕЙСТВИЙ (ХОДЫ И СТАВКИ) -->
             <div style="display:flex; gap:6px; padding:10px; background:#0f141c; border-top:1px solid #1e2633; justify-content:center; box-sizing:border-box;">
-                <button class="action-btn" id="m-btn-deal" onclick="startHandLogic()" style="background:#3b82f6; color:#fff; font-weight:bold; border:none; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">РАЗДАЧА</button>
-                <button class="action-btn" id="m-btn-look" onclick="actionLookHand()" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">КАРТЫ</button>
-                <button class="action-btn" id="m-btn-check" onclick="actionPlayerMove('check')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ЧЕК</button>
-                <button class="action-btn" id="m-btn-raise" onclick="actionPlayerMove('raise')" disabled style="background:#e05656; color:#fff; border:none; padding:12px 6px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer; flex:1.4;">ПОДНЯТЬ +100</button>
-                <button class="action-btn" id="m-btn-fold" onclick="actionPlayerMove('fold')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ПАС</button>
-            </div>
-            
-            <!-- Опция безопасного выхода -->
-            <div style="background:#0f141c; padding-bottom:8px; text-align:center;">
-                <span onclick="exitFromOnlineRoom()" style="color:#4c566a; font-size:11px; font-weight:bold; cursor:pointer; text-decoration:underline;">Сдаться и выйти со стола</span>
+                  <button class="action-btn" id="m-btn-deal" onclick="startHandLogic()" style="background:#3b82f6; color:#fff; font-weight:bold; border:none; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">РАЗДАЧА</button>
+                  <button class="action-btn" id="m-btn-look" onclick="actionLookHand()" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">КАРТЫ</button>
+                  <button class="action-btn" id="m-btn-check" onclick="actionPlayerMove('check')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ЧЕК</button>
+                  <button class="action-btn" id="m-btn-raise" onclick="actionPlayerMove('raise')" disabled style="background:#e05656; color:#fff; border:none; padding:12px 6px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer; flex:1.4;">ПОДНЯТЬ +100</button>
+                  <button class="action-btn" id="m-btn-fold" onclick="actionPlayerMove('fold')" disabled style="background:#232b35; color:#707789; border:1px solid #313b46; padding:12px 6px; border-radius:8px; font-size:11px; cursor:pointer; flex:1;">ПАС</button>
             </div>
         </div>
 
@@ -559,6 +566,20 @@
             secureVault._chips = chips;
             secureVault._trinki = trinki;
             secureVault._hash = calculateMemorySignature(chips, trinki);
+        }
+
+                // Переключатель модального окна предупреждения о сбросе фишек
+        function toggleExitConfirmationModal(show) {
+            const modal = document.getElementById('modal-exit-confirm');
+            if (modal) {
+                modal.style.display = show ? 'flex' : 'none';
+            }
+        }
+
+        // Принудительный выход со стола с очисткой окон
+        function executeForcedExitFromRoom() {
+            toggleExitConfirmationModal(false); // Прячем предупреждение
+            exitFromOnlineRoom(); // Активируем вашу базовую сетевую очистку и выкидываем в лобби
         }
 
         function getSecureResources() {
@@ -2137,12 +2158,7 @@
             }
         }
 
-        // Слушаем нажатие клавиши Enter внутри поля чата матча
-        document.getElementById('match-chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendRoomTextMessage();
-        });
-
-                window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', () => {
             console.log("TRINDOC Онлайн: Все системы вертикального лобби запущены.");
             
             // Проверяем, чтобы глобальные объекты базы данных были созданы
@@ -2157,9 +2173,10 @@
             }
             
             // Обнуляем HUD кошельков до ввода никнейма
-            document.getElementById('val-chips').innerText = "0";
-            document.getElementById('val-trinki').innerText = "0";
+            if (document.getElementById('val-chips')) document.getElementById('val-chips').innerText = "0";
+            if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
+
 
         // Создание стола с динамическими параметрами (Расширение до 4 мест)
         function triggerCreateOnlineRoom() {
