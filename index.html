@@ -2041,15 +2041,8 @@
                 opponents.push(allSeats[opponentIndex]);
             }
 
-            // Массив соответствия графических ID элементов на сукне (Левый, Верхний, Правый оппоненты)
-            const oppUiMap = [
-                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1' }, // Игрок слева
-                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2' },  // Игрок сверху
-                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3' } // Игрок справа
-            ];
-
-            // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ ---
-             // Массив соответствия графических ID элементов на сукне (Левый, Верхний, Правый оппоненты)
+            // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ (ЖЕЛЕЗНЫЙ ФИКС НАЛОЖЕНИЯ) ---
+            // Оставляем только один правильный массив с индексами для разворота зеркала
             const oppUiMap = [
                 { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 2 }, // Лево -> opponents[2]
                 { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх -> opponents[1]
