@@ -2841,37 +2841,38 @@
         }
 
 
-         // Сетевая слежка за столом и плавная подсадка ботов (точечно для Создателя)
+         // Сетевая слежка за столом и плавная подсадка ботов (с логированием для отладки)
         function listenRoomStatusChanges(roomId) {
-            // Очищаем старый таймер ботов при перезапуске слежки
             if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
 
             database.ref('rooms/' + roomId).on('value', (snapshot) => {
                 let room = snapshot.val();
                 if (!room) {
+                    console.log("ОТЛАДКА: Данные комнаты не найдены в базе.");
                     if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                     return;
                 }
 
-                // ЖЕЛЕЗНЫЙ СЕТЕВОЙ ФИКС: Рендерим карты, бабблы и ставки всех 4 игроков в реальном времени!
-                renderOnlineMatchUiAndCards(room);
+                console.log("ОТЛАДКА: Сетевой апдейт получен. Статус комнаты:", room.status, "Игроков:", room.playersCount, "Макс:", room.maxPlayers);
+
+                // Чтобы ошибки рендеринга не тушили нам ботов, обернем его в try-catch
+                try {
+                    renderOnlineMatchUiAndCards(room);
+                } catch(e) {
+                    console.error("КРИТИЧЕСКАЯ ОШИБКА В renderOnlineMatchUiAndCards:", e);
+                }
 
                 // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА
                 if (room.p1_id === currentUserId && room.status === "playing") {
-                    // Если статус сменился на игру, но карты еще не сгенерированы в БД — запускаем Секу!
                     if (!room.p1_cards) {
                         console.log("Стол укомплектован. Хост автоматически запускает раздачу карт...");
                         startHandLogic(); 
                         return;
                     }
 
-                    // ЖЕЛЕЗНЫЙ ФИКС ХОДА БОТОВ: Если сейчас очередь ходить виртуальному игроку
                     if (room.turn && room.turn.startsWith('bot_')) {
-                        // Ищем, на каком конкретно кресле сидит этот бот
                         const seats = ['p1', 'p2', 'p3', 'p4'];
                         let botSeat = seats.find(s => room[s + '_id'] === room.turn);
-                
-                        // Если кресло найдено и этот бот активен — запускаем для него ИИ (функция handleOnlineBotTurn)
                         if (botSeat && room[botSeat + '_status'] === 'active') {
                             if (typeof handleOnlineBotTurn === "function") {
                                 handleOnlineBotTurn(room, botSeat);
@@ -2880,70 +2881,81 @@
                     }
                 }
 
-                // ЛОГИКА БОТОВ: Расчетом занимается строго Создатель стола и только в режиме ожидания
+                // ЛОГИКА БОТОВ
                 if (room.p1_id === currentUserId && room.status === "waiting") {
+                    console.log("ОТЛАДКА: Мы хост, комната в режиме waiting. Проверяем лимиты...");
 
-                    // Если лимит мест еще не достигнут
                     if (room.playersCount < room.maxPlayers) {
-    
-                        // ФИКС ЦИКЛА: Взводим таймер только если он ЕЩЕ НЕ запущен, чтобы сетевые апдейты не сбрасывали его
                         if (!botTimerId) {
-                            // Первая фора для друзей — 30 сек, если кто-то уже сидит — бот зайдет быстрее (через 15 сек)
-                            let delay = (room.playersCount === 1) ? 30000 : 15000;
+                            // Уменьшаем задержку до 5 секунд для быстрого теста, чтобы не ждать минуту!
+                            let delay = 5000; 
+                            console.log(`ОТЛАДКА: Взводим таймер подсадки бота на ${delay/1000} секунд...`);
 
                             botTimerId = setTimeout(() => {
-                                // Сбрасываем указатель перед асинхронным запросом
                                 botTimerId = null;
+                                console.log("ОТЛАДКА: Таймер сработал! Запрашиваем freshRoom из базы...");
 
-                                // Проверяем актуальное состояние комнаты перед инъекцией бота
                                 database.ref('rooms/' + roomId).once('value').then((freshSnap) => {
                                     let freshRoom = freshSnap.val();
-                                    if (!freshRoom || freshRoom.status !== "waiting" || freshRoom.playersCount >= freshRoom.maxPlayers) return;
+                                    if (!freshRoom) { console.log("ОТЛАДКА: freshRoom пуст"); return; }
+                            
+                                    console.log("ОТЛАДКА: Проверка внутри триггера. Текущий статус:", freshRoom.status, "Игроков:", freshRoom.playersCount);
 
-                                    // Пул реалистичных никнеймов под обычных игроков
-                                    const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K", "Dmitry_Poker", "Shadow", "Panda_Z", "Kasparov", "WildCard", "Tornado"];
+                                    if (freshRoom.status !== "waiting" || freshRoom.playersCount >= freshRoom.maxPlayers) {
+                                        console.log("ОТЛАДКА: Подсадка отменена, условия изменились.");
+                                        return;
+                                    }
+
+                                    const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K"];
                                     let randomName = humanNames[Math.floor(Math.random() * humanNames.length)];
-                                    let randomChips = Math.floor(Math.random() * (3500 - 1200 + 1)) + 1200; // Стек от 1200 до 3500
+                                    let randomChips = 2500;
 
                                     let updates = {};
-                                    // Ищем первое пустующее кресло для бота
                                     if (!freshRoom.p2_id) {
                                         updates.p2_id = "bot_" + Math.random().toString(36).substr(2, 9);
                                         updates.p2_name = randomName;
                                         updates.p2_chips = randomChips;
+                                        updates.p2_status = "active";
+                                        console.log("ОТЛАДКА: Регистрируем бота на кресло p2");
                                     } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
                                         updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
                                         updates.p3_name = randomName;
                                         updates.p3_chips = randomChips;
+                                        updates.p3_status = "active";
+                                        console.log("ОТЛАДКА: Регистрируем бота на кресло p3");
                                     } else if (!freshRoom.p4_id && freshRoom.maxPlayers >= 4) {
                                         updates.p4_id = "bot_" + Math.random().toString(36).substr(2, 9);
                                         updates.p4_name = randomName;
                                         updates.p4_chips = randomChips;
+                                        updates.p4_status = "active";
+                                        console.log("ОТЛАДКА: Регистрируем бота на кресло p4");
                                     }
 
                                     let nextPlayersCount = freshRoom.playersCount + 1;
                                     updates.playersCount = nextPlayersCount;
 
-                                    // Если этот бот забил последнее доступное место — переводим стол в режим игры
                                     if (nextPlayersCount >= freshRoom.maxPlayers) {
                                         updates.status = "playing";
+                                        console.log("ОТЛАДКА: Это был последний бот. Переводим стол в playing!");
                                     }
 
-                                    // Пушим бота в Firebase
-                                    database.ref('rooms/' + roomId).update(updates);
-                                }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли колбэк метода .then()
-                            }, delay); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли круглую скобку setTimeout()
+                                    database.ref('rooms/' + roomId).update(updates).then(() => {
+                                        console.log("ОТЛАДКА: Бот успешно записан в Firebase!");
+                                    });
+                                });
+                            }, delay);
+                        } else {
+                            console.log("ОТЛАДКА: Таймер уже тикает, не перезапускаем.");
                         }
                     } else {
-                        // Если места забиты людьми, а статус еще waiting — тушим таймер
-                        if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+                        console.log("ОТЛАДКА: Места уже заполнены, таймер не нужен.");
                     }
                 } else {
-                    // Если статус изменился на "playing" или мы не хост — тушим таймер подсадки
                     if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                 }
             });
         }
+
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
         function exitFromOnlineRoom() {
