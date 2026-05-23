@@ -2007,7 +2007,7 @@
                     // Стол укомплектован! Ожидаем тапа готовности от каждого участника кона
                     readyBtn.style.display = "block";
                     readyBtn.style.opacity = "1";
-            
+    
                     let myReadyStatus = room[mySeat.key + '_ready'];
                     if (myReadyStatus === true) {
                         readyBtn.innerText = "ВЫ ГОТОВЫ (Ожидание остальных...)";
@@ -2057,8 +2057,6 @@
                     });
                 }
             }
-        }
-
 
             // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ ---
             const seatsConfig = [
@@ -2150,6 +2148,7 @@
                 }
             }
         }
+
 
                 // Функция подтверждения готовности на сукне
         function togglePlayerReadyOnline(mySeatKey) {
