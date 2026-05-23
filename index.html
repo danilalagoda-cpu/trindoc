@@ -1996,8 +1996,15 @@
                 { key: 'p4', id: room.p4_id, name: room.p4_name, chips: room.p4_chips, cards: room.p4_cards, bet: room.p4_bet, status: room.p4_status }
             ];
 
-            const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
-            if (mySeatIndex === -1) return;
+            // УНИВЕРСАЛЬНЫЙ ПОИСК: Компьютер ищет нас за столом по ID или по Нику
+            const mySeatIndex = allSeats.findIndex(seat => 
+                (seat.id && seat.id === currentUserId) || 
+                (seat.name && seat.name === localUser.nick)
+            );
+            if (mySeatIndex === -1) {
+                console.log("ОШИБКА: Компьютер не смог найти ваше кресло на сукне.");
+                return;
+            }
 
             const mySeat = allSeats[mySeatIndex];
 
@@ -2862,8 +2869,16 @@
                 { id: room.p4_id, name: room.p4_name, chips: room.p4_chips }
             ];
 
-            const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
-            if (mySeatIndex === -1) return;
+            // УНИВЕРСАЛЬНЫЙ ПОИСК: Компьютер ищет нас за столом по ID или по Нику
+            const mySeatIndex = allSeats.findIndex(seat => 
+                (seat.id && seat.id === currentUserId) || 
+                (seat.name && seat.name === localUser.nick)
+            );
+            if (mySeatIndex === -1) {
+                console.log("ОШИБКА: Компьютер не смог найти ваше кресло на сукне.");
+                return;
+            }
+
 
             // 1. Отрисовка себя снизу
             document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
