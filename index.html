@@ -287,7 +287,7 @@
                         <div class="store-view" id="store-donate" style="display:none;">
                             <div style="background:#111216; border:1px solid #ecc94b; border-radius:8px; padding:15px; text-align:center;">
                                 <div style="font-weight:bold; font-size:14px; color:#ecc94b;">БЕСПЛАТНЫЕ ТРИНКИ</div>
-                                <div style="font-size:11px; margin:5px 0 12px 0; color:#4c566a;">Получите +50 Тринок за рекламу</div>
+                                <div style="font-size:11px; margin:5px 0 12px 0; color:#4c566a;">Получите +5 Тринок за рекламу</div>
                                 <button onclick="triggerAdReward()" style="background:#ecc94b; color:#111216; border:none; padding:10px; border-radius:6px; font-weight:bold; font-size:12px; cursor:pointer; width:100%;">СМОТРЕТЬ</button>
                             </div>
                         </div>
@@ -1163,7 +1163,7 @@
             let res = getSecureResources();
             if (res.corrupted) return;
 
-            setSecureResources(res.chips, res.trinki + 50);
+            setSecureResources(res.chips, res.trinki + 5);
             saveUserProfileToCloud();
             refreshUiWalletsAndStyles();
             rebuildStoreCards();
@@ -1876,51 +1876,58 @@
             // Скачиваем актуальное состояние стола перед началом раздачи
             database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
                 let room = snapshot.val();
-                if (!room || room.status !== 'waiting' && room.status !== 'showdown') return;
+                if (!room) return;
         
+                // ЖЕЛЕЗНЫЙ ФИКС СТАТУСА: Разрешаем раздачу, если игра стартует ("playing" и еще нет карт) 
+                // либо если идет подготовка/новый кон ("waiting" / "showdown")
+                let hasNoCardsYet = !room.p1_cards && room.status === "playing";
+                let isReadyState = room.status === 'waiting' || room.status === 'showdown';
+        
+                if (!hasNoCardsYet && !isReadyState) return;
+
                 // ЖЕЛЕЗНАЯ ПРОВЕРКА ХОСТА: запускать раздачу может только реальный хозяин стола (p1)
                 if (room.p1_id !== currentUserId) {
                     console.log("Вы не являетесь создателем этого стола. Раздача заблокирована.");
                     return;
                 }
-        
+
                 let res = getSecureResources();
                 if (res.corrupted) return; // MTS Античит
 
-                // 1. Генерируем сочную колоду Секи
+                // 1. Генерируем сочную колоду Секи (36 карт)
                 let fullDeck = generateOnlineDeck();
                 let updates = {
                     status: "playing",
                     pot: 0,
-                    currentBet: room.ante,
-                    turn: room.p1_id // Создатель стола всегда ходит первым в первом коне
+                    currentBet: room.ante || 50,
+                    turn: "p1" // ЖЕЛЕЗНЫЙ ФИКС: Создатель стола (кресло p1) всегда ходит первым!
                 };
 
                 // Массив всех кресел для циклической раздачи карт
                 const seats = ['p1', 'p2', 'p3', 'p4'];
-        
+
                 // 2. Раздаем строго по 3 карты в каждое занятое людьми или ботами кресло
                 seats.forEach(seat => {
                     if (room[seat + '_id']) {
                         // Вырезаем 3 карты из колоды
                         let hand = [fullDeck.pop(), fullDeck.pop(), fullDeck.pop()];
-                
+        
                         updates[seat + '_cards'] = hand;
-                        updates[seat + '_bet'] = room.ante;
+                        updates[seat + '_bet'] = room.ante || 50;
                         updates[seat + '_status'] = "active"; // Статус игрока: в игре
-                
-                        updates.pot += room.ante; // Списываем обязательное анте в банк
-                
-                        // Если раздаем себе (Создателю на ПК или Телефоне) — локально списываем фишки через античит
+        
+                        updates.pot += (room.ante || 50); // Списываем обязательное анте в банк
+        
+                        // Если раздаем себе (Создателю) — локально списываем фишки через античит
                         if (room[seat + '_id'] === currentUserId) {
-                            if (res.chips >= room.ante) {
-                                res.chips -= room.ante;
+                            if (res.chips >= (room.ante || 50)) {
+                                res.chips -= (room.ante || 50);
                                 setSecureResources(res.chips, res.trinki);
                                 updates[seat + '_chips'] = res.chips;
                             }
                         } else {
                             // Если это бот или другой реальный игрок — списываем анте из его серверного стека комнаты
-                            updates[seat + '_chips'] = Math.max(0, (room[seat + '_chips'] || 0) - room.ante);
+                            updates[seat + '_chips'] = Math.max(0, (room[seat + '_chips'] || 0) - (room.ante || 50));
                         }
                     } else {
                         // Если кресло пустое — очищаем его игровые параметры
@@ -1931,14 +1938,15 @@
                 });
 
                 console.log("Облачный старт раздачи! Банк собран:", updates.pot);
-        
-                // Пушим раздачу карт напрямую на сервера Европы в Firebase Realtime Database
+
+                // Пушим раздачу карт напрямую на сервера в Firebase Realtime Database
                 database.ref('rooms/' + currentRoomId).update(updates).then(() => {
-                    saveUserProfileToCloud();
-                    refreshUiWalletsAndStyles();
+                    if (typeof saveUserProfileToCloud === "function") saveUserProfileToCloud();
+                    if (typeof refreshUiWalletsAndStyles === "function") refreshUiWalletsAndStyles();
                 });
             });
         }
+
 
 
                 // Сетевая кнопка «Посмотреть карты» — выход из режима «Вслепую»
@@ -2686,59 +2694,72 @@
         }
 
         // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
-        function connectToOnlineRoom(roomId) {
+         function connectToOnlineRoom(roomId) {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит
 
             database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                 let room = snapshot.val();
-                if (!room || room.status !== 'waiting') return;
-                if (res.chips < room.ante) return; // Проверка баланса под анте стола
-
-                let updates = {};
-                let targetSlot = 0;
-
-                // Ищем свободное кресло по порядку
-                if (!room.p2_id) {
-                    targetSlot = 2;
-                    updates.p2_id = currentUserId;
-                    updates.p2_name = localUser.nick;
-                    updates.p2_chips = res.chips;
-                } else if (!room.p3_id && room.maxPlayers >= 3) {
-                    targetSlot = 3;
-                    updates.p3_id = currentUserId;
-                    updates.p3_name = localUser.nick;
-                    updates.p3_chips = res.chips;
-                } else if (!room.p4_id && room.maxPlayers >= 4) {
-                    targetSlot = 4;
-                    updates.p4_id = currentUserId;
-                    updates.p4_name = localUser.nick;
-                    updates.p4_chips = res.chips;
-                } else {
-                    return; // Все доступные места по лимиту стола уже заняты
+                if (!room || room.status !== 'waiting') {
+                    alert("Не удалось войти: стол уже играет или не существует.");
+                    return;
+                }
+                if (res.chips < room.ante) {
+                    alert("Недостаточно фишек для оплаты взноса Анте!");
+                    return;
                 }
 
-                // Считаем новое общее количество игроков на основе занятых ячеек
-                let currentPlayersCount = room.playersCount + 1;
+                let updates = {};
+                let targetSeatKey = "";
+
+                // Ищем свободное кресло и ОБЯЗАТЕЛЬНО прописываем статус "active"
+                if (!room.p2_id) {
+                    targetSeatKey = "p2";
+                } else if (!room.p3_id && room.maxPlayers >= 3) {
+                    targetSeatKey = "p3";
+                } else if (!room.p4_id && room.maxPlayers >= 4) {
+                    targetSeatKey = "p4";
+                } else {
+                    alert("Все места за столом уже заняты!");
+                    return; 
+                }
+
+                // Заполняем пакет данных заходящего игрока
+                updates[targetSeatKey + '_id'] = currentUserId;
+                updates[targetSeatKey + '_name'] = localUser.nick || "Игрок";
+                updates[targetSeatKey + '_chips'] = res.chips;
+                updates[targetSeatKey + '_status'] = "active"; // ЖЕЛЕЗНЫЙ ФИКС: активируем кресло в базе!
+
+                // Пересчитываем количество реальных игроков на сервере
+                let currentPlayersCount = (room.playersCount || 1) + 1;
                 updates.playersCount = currentPlayersCount;
 
-                // Если стол полностью забит под лимит настроек — запускаем кон матча
+                // ЖЕЛЕЗНЫЙ АРХИТЕКТУРНЫЙ ФИКС: 
+                // Если стол заполнился живыми людьми, Хост сам увидит это через свой .on('value') 
+                // и переведет комнату в "playing", сгенерировав колоду. ПК сюда не вмешивается!
                 if (currentPlayersCount >= room.maxPlayers) {
                     updates.status = "playing";
                 }
 
+                console.log(`Отправка запроса на посадку в кресло ${targetSeatKey}...`);
+
                 // Отправляем обновления на сервер Firebase
                 database.ref('rooms/' + roomId).update(updates).then(() => {
                     currentRoomId = roomId;
-                    
-                    // Скачиваем обновленную карточку стола и заходим на синее сукно
+            
+                    // Включаем сетевую слежку на входящем устройстве (ПК)
+                    listenRoomStatusChanges(currentRoomId);
+            
+                    // Запрашиваем финальный снимок для мгновенного первичного рендера сукна
                     database.ref('rooms/' + roomId).once('value').then((snap) => {
                         enterOnlineMatchLayout(snap.val());
-                        listenRoomStatusChanges(currentRoomId); // Включаем сетевой радар изменений стола
                     });
+                }).catch((err) => {
+                    console.error("Ошибка при обновлении ячейки стола в Firebase:", err);
                 });
             });
         }
+
 
          function enterOnlineMatchLayout(room) {
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
