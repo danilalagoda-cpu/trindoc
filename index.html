@@ -1967,15 +1967,13 @@
         }
 
         // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
-        function renderOnlineMatchUiAndCards(room) {
+          function renderOnlineMatchUiAndCards(room) {
             if (!room) return;
 
-            // 1. Синхронизируем общий банк стола
             if (document.getElementById('match-pot-val')) {
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
     
-            // Настройка кнопки раздачи карт на сукне
             const dealBtn = document.getElementById('m-btn-deal');
             if (dealBtn) {
                 if (room.p1_id === currentUserId) {
@@ -1986,7 +1984,6 @@
                 }
             }
 
-            // Массив всех 4 кресел в базе комнаты
             const allSeats = [
                 { key: 'p1', id: room.p1_id, name: room.p1_name, chips: room.p1_chips, cards: room.p1_cards, bet: room.p1_bet, status: room.p1_status },
                 { key: 'p2', id: room.p2_id, name: room.p2_name, chips: room.p2_chips, cards: room.p2_cards, bet: room.p2_bet, status: room.p2_status },
@@ -1994,20 +1991,18 @@
                 { key: 'p4', id: room.p4_id, name: room.p4_name, chips: room.p4_chips, cards: room.p4_cards, bet: room.p4_bet, status: room.p4_status }
             ];
 
-            // Ищем наше кресло по уникальному ID
             const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
             if (mySeatIndex === -1) return;
 
             const mySeat = allSeats[mySeatIndex];
 
-            // --- БЛОК 1: ОТРИСОВКА ВАШИХ КАРТ (ИГРОК СНИЗУ) ---
+            // --- ОТРИСОВКА ВАШИХ КАРТ (СНИЗУ) ---
             const pContainer = document.getElementById('m-cards-player');
             if (pContainer) {
                 pContainer.innerHTML = '';
         
-                // Включаем интерактивные кнопки ходов, если в поле turn записан наш ID или имя нашего кресла
                 let isMyTurn = ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing");
-                document.getElementById('m-btn-look').disabled = (room.status !== "playing" || mySeat.status !== "active");
+                document.getElementById('m-btn-look').disabled = (room.status !== "playing" || mySeat.status === "folded");
                 document.getElementById('m-btn-check').disabled = !isMyTurn;
                 document.getElementById('m-btn-raise').disabled = !isMyTurn;
                 document.getElementById('m-btn-fold').disabled = !isMyTurn;
@@ -2015,7 +2010,6 @@
                 if (mySeat.cards && mySeat.cards.length > 0) {
                     mySeat.cards.forEach((c, idx) => {
                         let div = document.createElement('div');
-                
                         if (room.mode === 'blind' && !mySeat.hasLooked && room.status === "playing") {
                             div.className = 'playing-card card-back';
                             if (localUser.activeShirt === 'shirt_blue') div.style.backgroundColor = '#1e3a8a';
@@ -2024,7 +2018,6 @@
                             div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
                             div.innerHTML = `<div>${c.rank}</div><div class="card-suit-center">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
                         }
-                
                         div.style.marginLeft = idx > 0 ? "-28px" : "0px";
                         div.style.transform = `rotate(${(idx - 1) * 6}deg) translateY(${(idx === 1) ? "-4px" : "0px"})`;
                         pContainer.appendChild(div);
@@ -2032,18 +2025,17 @@
                 }
             }
 
-            // --- БЛОК 2: СБОР И СДВИГ ОППОНЕНТОВ ПО ЧАСОВОЙ СТРЕЛКЕ ---
             let opponents = [];
             for (let i = 1; i < 4; i++) {
                 let opponentIndex = (mySeatIndex + i) % 4;
                 opponents.push(allSeats[opponentIndex]);
             }
 
-            // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ (ГЕОМЕТРИЧЕСКИЙ ФИКС) ---
+            // --- ОТРИСОВКА ОППОНЕНТОВ С УЧЕТОМ ЛИМИТА МЕСТ ---
             const oppUiMap = [
-                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 }, // Лево -> opponents[0] (Первый по часовой)
-                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх -> opponents[1] (Второй по часовой)
-                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право -> opponents[2] (Третий по часовой)
+                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 }, // Лево
+                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх
+                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право
             ];
 
             oppUiMap.forEach((ui) => {
@@ -2053,14 +2045,27 @@
         
                 if (!cardsCont || !boxEl) return;
 
+                // Фильтр лимита мест (скрываем лишние физически)
+                let isSeatValidForLimit = true;
+                let maxP = parseInt(room.maxPlayers) || 4;
+                if (maxP === 2 && ui.boxId !== 'seat-opp-top') isSeatValidForLimit = false;
+                if (maxP === 3 && ui.boxId === 'seat-opp-right') isSeatValidForLimit = false;
+
+                if (!isSeatValidForLimit) {
+                    boxEl.style.display = 'none';
+                    return;
+                }
+
+                boxEl.style.display = 'block';
                 boxEl.style.outline = "none";
                 boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
+                // ЖЕЛЕЗНЫЙ ФИКС: Если ID игрока существует, рендерим его, даже если статус "empty"
                 if (opp && opp.id) {
                     cardsCont.innerHTML = '';
 
                     if (opp.status === 'folded') {
-                        cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px;'>🏳️ ПАС</span>";
+                        cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
                     } else if (opp.cards && opp.cards.length > 0) {
                         opp.cards.forEach((c, idx) => {
                             let div = document.createElement('div');
@@ -2077,7 +2082,6 @@
                         });
                     }
 
-                    // Подсветка активного хода оппонента (Проверяем ID или ключ кресла)
                     if ((room.turn === opp.id || room.turn === opp.key) && room.status === "playing") {
                         boxEl.style.outline = "2px dashed #3b82f6";
                         boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
@@ -2089,16 +2093,16 @@
                     }
             
                     let chipsField = document.getElementById(ui.chipsId);
-                    if (chipsField) {
-                        chipsField.innerText = opp.chips || "0";
-                    }
+                    if (chipsField) chipsField.innerText = opp.chips || "0";
                 } else {
-                    // Если кресло пустое, убираем старые карты предыдущих игр
                     cardsCont.innerHTML = '';
+                    let nameField = document.getElementById(ui.bubbleId);
+                    if (nameField) nameField.innerText = "Ожидание...";
+                    let chipsField = document.getElementById(ui.chipsId);
+                    if (chipsField) chipsField.innerText = "0";
                 }
             });
 
-            // Подсвечиваем рамку нашего нижнего аватара, если ход ХОДИТЕ ВЫ
             const myBox = document.getElementById('m-profile-box');
             if (myBox) {
                 if ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing") {
@@ -2110,6 +2114,7 @@
                 }
             }
         }
+
 
                 // --- ЧАСТЬ 9: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
 
@@ -2735,9 +2740,7 @@
             });
         }
 
-          // Универсальное распределение игроков по 4 креслам крестообразного стола матча (Зеркальный фикс)
-        function enterOnlineMatchLayout(room) {
-            // Мгновенно переключаем экраны телефона: прячем лобби, включаем сукно
+          function enterOnlineMatchLayout(room) {
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
             if (document.getElementById('screen-match')) document.getElementById('screen-match').style.display = 'flex';
 
@@ -2745,7 +2748,6 @@
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
 
-            // Массив всех 4 кресел в базе данных комнаты
             const allSeats = [
                 { id: room.p1_id, name: room.p1_name, chips: room.p1_chips },
                 { id: room.p2_id, name: room.p2_name, chips: room.p2_chips },
@@ -2753,61 +2755,54 @@
                 { id: room.p4_id, name: room.p4_name, chips: room.p4_chips }
             ];
 
-            // ЖЕЛЕЗНЫЙ ПОИСК: Ищем наше кресло строго по уникальному ID пользователя
             const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
-
             if (mySeatIndex !== -1) {
-                // 1. Выводим наши данные в нижний (главный) аватар игрока
                 document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
                 document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
 
-                // 2. Собираем список оппонентов строго по часовой стрелке относительно нас
                 let opponents = [];
                 for (let i = 1; i < 4; i++) {
                     let opponentIndex = (mySeatIndex + i) % 4;
                     opponents.push(allSeats[opponentIndex]);
                 }
 
-                // ЖЕЛЕЗНЫЙ ГЕОМЕТРИЧЕСКИЙ ФИКС ЗЕРКАЛА (Строго по правилам Трыньки по часовой стрелке):
-                // opponents[0] -> Садится на ЛЕВОЕ кресло (Следующий за нами)
-                // opponents[1] -> Садится на ВЕРХНЕЕ кресло (Напротив нас)
-                // opponents[2] -> Садится на ПРАВОЕ кресло (Предыдущий перед нами)
+                // Карта привязки UI-элементов под кресла
+                const oppUiMap = [
+                    { boxId: 'seat-opp-left', nameId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 },  // Лево
+                    { boxId: 'seat-opp-top', nameId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },   // Верх
+                    { boxId: 'seat-opp-right', nameId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право
+                ];
 
-                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 0 из массива opponents)
-                if (opponents[0] && opponents[0].id) {
-                    document.getElementById('seat-opp-left').style.display = 'block';
-                    document.getElementById('m-label-opp-name-left').innerText = opponents[0].name;
-                    document.getElementById('m-chips-bot1').innerText = opponents[0].chips;
-                } else {
-                    document.getElementById('seat-opp-left').style.display = (room.maxPlayers >= 2) ? 'block' : 'none';
-                    document.getElementById('m-label-opp-name-left').innerText = "Ожидание...";
-                    document.getElementById('m-chips-bot1').innerText = "0";
-                }
+                oppUiMap.forEach((ui) => {
+                    const opp = opponents[ui.index];
+                    const boxEl = document.getElementById(ui.boxId);
+                    if (!boxEl) return;
 
-                // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Индекс 1 из массива opponents)
-                if (opponents[1] && opponents[1].id) {
-                    document.getElementById('seat-opp-top').style.display = 'block';
-                    document.getElementById('m-label-opp-name-top').innerText = opponents[1].name;
-                    document.getElementById('m-chips-bot2').innerText = opponents[1].chips;
-                } else {
-                    document.getElementById('seat-opp-top').style.display = (room.maxPlayers >= 3) ? 'block' : 'none';
-                    document.getElementById('m-label-opp-name-top').innerText = "Ожидание...";
-                    document.getElementById('m-chips-bot2').innerText = "0";
-                }
+                    // Проверяем, должно ли это кресло физически существовать при текущем лимите стола
+                    let isSeatValidForLimit = true;
+                    let maxP = parseInt(room.maxPlayers) || 4;
+            
+                    if (maxP === 2 && ui.boxId !== 'seat-opp-top') isSeatValidForLimit = false; // На двоих оставляем ТОЛЬКО верхнее кресло
+                    if (maxP === 3 && ui.boxId === 'seat-opp-right') isSeatValidForLimit = false; // На троих убираем правое кресло
 
-                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 2 из массива opponents)
-                if (opponents[2] && opponents[2].id) {
-                    document.getElementById('seat-opp-right').style.display = 'block';
-                    document.getElementById('m-label-opp-name-right').innerText = opponents[2].name;
-                    document.getElementById('m-chips-bot3').innerText = opponents[2].chips;
-                } else {
-                    document.getElementById('seat-opp-right').style.display = (room.maxPlayers >= 4) ? 'block' : 'none';
-                    document.getElementById('m-label-opp-name-right').innerText = "Ожидание...";
-                    document.getElementById('m-chips-bot3').innerText = "0";
-                }
+                    if (!isSeatValidForLimit) {
+                        boxEl.style.display = 'none'; // Полностью прячем кресло из верстки
+                        return;
+                    }
+
+                    boxEl.style.display = 'block';
+
+                    // ЖЕЛЕЗНЫЙ ФИКС: Проверяем наличие игрока по его ID, игнорируя кривой статус из базы
+                    if (opp && opp.id) {
+                        document.getElementById(ui.nameId).innerText = opp.name;
+                        document.getElementById(ui.chipsId).innerText = opp.chips;
+                    } else {
+                        document.getElementById(ui.nameId).innerText = "Ожидание...";
+                        document.getElementById(ui.chipsId).innerText = "0";
+                    }
+                });
             }
         }
-
 
 
          // Генерация и перемешивание колоды из 36 карт (от Шестерки до Туза)
