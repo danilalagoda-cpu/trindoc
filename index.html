@@ -2774,72 +2774,77 @@
             });
         }
 
-        // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
-         function connectToOnlineRoom(roomId) {
-            let res = getSecureResources();
-            if (res.corrupted) return; // MTS Античит
+         // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
+        function connectToOnlineRoom(roomId) {
+           let res = getSecureResources();
+           if (res.corrupted) return; // MTS Античит
 
-            database.ref('rooms/' + roomId).once('value').then((snapshot) => {
-                let room = snapshot.val();
-                if (!room || room.status !== 'waiting') {
-                    alert("Не удалось войти: стол уже играет или не существует.");
-                    return;
-                }
-                if (res.chips < room.ante) {
-                    alert("Недостаточно фишек для оплаты взноса Анте!");
-                    return;
-                }
+           database.ref('rooms/' + roomId).once('value').then((snapshot) => {
+               let room = snapshot.val();
+               if (!room || room.status !== 'waiting') {
+                   alert("Не удалось войти: стол уже играет или не существует.");
+                   return;
+               }
+               if (res.chips < room.ante) {
+                   alert("Недостаточно фишек для оплаты взноса Анте!");
+                   return;
+               }
 
-                let updates = {};
-                let targetSeatKey = "";
+               let updates = {};
+               let targetSeatKey = "";
 
-                // Ищем свободное кресло и ОБЯЗАТЕЛЬНО прописываем статус "active"
-                if (!room.p2_id) {
-                    targetSeatKey = "p2";
-                } else if (!room.p3_id && room.maxPlayers >= 3) {
-                    targetSeatKey = "p3";
-                } else if (!room.p4_id && room.maxPlayers >= 4) {
-                    targetSeatKey = "p4";
-                } else {
-                    alert("Все места за столом уже заняты!");
-                    return; 
-                }
+               // Ищем свободное кресло и ОБЯЗАТЕЛЬНО прописываем статус "active"
+               if (!room.p2_id) {
+                   targetSeatKey = "p2";
+               } else if (!room.p3_id && room.maxPlayers >= 3) {
+                   targetSeatKey = "p3";
+               } else if (!room.p4_id && room.maxPlayers >= 4) {
+                   targetSeatKey = "p4";
+               } else {
+                   alert("Все места за столом уже заняты!");
+                   return; 
+               }
 
-                // Заполняем пакет данных заходящего игрока
-                updates[targetSeatKey + '_id'] = currentUserId;
-                updates[targetSeatKey + '_name'] = localUser.nick || "Игрок";
-                updates[targetSeatKey + '_chips'] = res.chips;
-                updates[targetSeatKey + '_status'] = "active"; // ЖЕЛЕЗНЫЙ ФИКС: активируем кресло в базе!
+               // Заполняем пакет данных заходящего игрока
+               updates[targetSeatKey + '_id'] = currentUserId;
+               updates[targetSeatKey + '_name'] = localUser.nick || "Игрок";
+               updates[targetSeatKey + '_chips'] = res.chips;
+               updates[targetSeatKey + '_status'] = "active"; // ЖЕЛЕЗНЫЙ ФИКС: активируем кресло в базе!
 
-                // Пересчитываем количество реальных игроков на сервере
-                let currentPlayersCount = (room.playersCount || 1) + 1;
-                updates.playersCount = currentPlayersCount;
+               // Пересчитываем количество реальных игроков на сервере
+               let currentPlayersCount = (room.playersCount || 1) + 1;
+               updates.playersCount = currentPlayersCount;
 
-                // ЖЕЛЕЗНЫЙ АРХИТЕКТУРНЫЙ ФИКС: 
-                // Если стол заполнился живыми людьми, Хост сам увидит это через свой .on('value') 
-                // и переведет комнату в "playing", сгенерировав колоду. ПК сюда не вмешивается!
-                if (currentPlayersCount >= room.maxPlayers) {
-                    updates.status = "playing";
-                }
+               // Если стол заполнился живыми людьми — переводим статус в режим игры
+               if (currentPlayersCount >= room.maxPlayers) {
+                   updates.status = "playing";
+               }
 
-                console.log(`Отправка запроса на посадку в кресло ${targetSeatKey}...`);
+               // ЖЕЛЕЗНЫЙ ЛОБОВОЙ ПИНК: Генерируем случайный триггер синхронизации Хоста
+               updates.force_sync_trigger = Math.random();
 
-                // Отправляем обновления на сервер Firebase
-                database.ref('rooms/' + roomId).update(updates).then(() => {
-                    currentRoomId = roomId;
-            
-                    // Включаем сетевую слежку на входящем устройстве (ПК)
-                    listenRoomStatusChanges(currentRoomId);
-            
-                    // Запрашиваем финальный снимок для мгновенного первичного рендера сукна
-                    database.ref('rooms/' + roomId).once('value').then((snap) => {
-                        enterOnlineMatchLayout(snap.val());
-                    });
-                }).catch((err) => {
-                    console.error("Ошибка при обновлении ячейки стола в Firebase:", err);
-                });
-            });
+               console.log(`Отправка запроса на посадку в кресло ${targetSeatKey}...`);
+
+               // Отправляем обновления на сервер Firebase
+               database.ref('rooms/' + roomId).update(updates).then(() => {
+                   currentRoomId = roomId;
+   
+                   // Включаем сетевую слежку на входящем устройстве (Гость)
+                   listenRoomStatusChanges(currentRoomId);
+   
+                   // БРОНЕБОЙНЫЙ ДУБЛЬ: Дополнительно бьем по триггеру в отдельном запросе для 100% пробития
+                   database.ref('rooms/' + roomId + '/force_sync_trigger').set(Math.random());
+
+                   // Запрашиваем финальный снимок для мгновенного первичного рендера сукна
+                   database.ref('rooms/' + roomId).once('value').then((snap) => {
+                       enterOnlineMatchLayout(snap.val());
+                   });
+               }).catch((err) => {
+                   console.error("Ошибка при обновлении ячейки стола в Firebase:", err);
+               });
+           });
         }
+
 
 
          function enterOnlineMatchLayout(room) {
@@ -2942,21 +2947,25 @@
         }
 
 
-        // Сетевая слежка за столом (Железный фикс синхронизации через тотальный поллинг)
+         // Сетевая слежка за столом (Железный фикс синхронизации через лобовой триггер пинка)
         function listenRoomStatusChanges(roomId) {
             if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
             if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
 
             console.log("РАДАР: Запуск агрессивной слежки за комнатой:", roomId);
 
+            // Намертво обрубаем все старые или зависшие подписки на этот путь в Firebase
             database.ref('rooms/' + roomId).off();
+            database.ref('rooms/' + roomId + '/force_sync_trigger').off();
 
+            // Единое ядро обработки и рендеринга данных комнаты
             function processRoomData(room) {
                 if (!room) {
                     if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
-                    if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
                     return;
                 }
+
+                console.log("РАДАР МГНОВЕННО ПОЙМАЛ ОБНОВЛЕНИЕ СЕТИ! Статус:", room.status);
 
                 try {
                     renderOnlineMatchUiAndCards(room);
@@ -2966,10 +2975,23 @@
 
                 // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА
                 if (room.p1_id === currentUserId && room.status === "playing") {
+                    // Если карт еще нет, но запущен принудительный старт или все подтвердили готовность
                     if (!room.p1_cards) {
-                        console.log("РАДАР: Хост зафиксировал старт игры! Раздаем карты...");
-                        startHandLogic(); 
-                        return;
+                        let totalPlayers = 0;
+                        let readyPlayers = 0;
+                        ['p1', 'p2', 'p3', 'p4'].forEach(s => {
+                            if (room[s + '_id']) {
+                                totalPlayers++;
+                                if (room[s + '_ready'] === true) readyPlayers++;
+                            }
+                        });
+
+                        // ЖЕЛЕЗНЫЙ ТРИГГЕР: Если все живые/боты нажали «ГОТОВ» и лимит мест стола заполнен
+                        if (readyPlayers >= totalPlayers && totalPlayers >= parseInt(room.maxPlayers)) {
+                            console.log("РАДАР: Все игроки подтвердили готовность. Хост автоматически сдает карты...");
+                            startHandLogic();
+                            return;
+                        }
                     }
 
                     // Проверка ходов ботов
@@ -2984,7 +3006,7 @@
                     }
                 }
 
-                // ЛОГИКА ОЖИДАНИЯ БОТОВ
+                // ЛОГИКА ОЖИДАНИЯ БОТОВ (Для режима waiting)
                 if (room.p1_id === currentUserId && room.status === "waiting") {
                     if (room.playersCount < room.maxPlayers) {
                         if (!botTimerId) {
@@ -3005,7 +3027,19 @@
                                         updates.p2_chips = 2500;
                                         updates.p2_status = "active";
                                         updates.p2_ready = true;
-                                    } // ... (остальные боты) ...
+                                    } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
+                                        updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                        updates.p3_name = randomName;
+                                        updates.p3_chips = 2500;
+                                        updates.p3_status = "active";
+                                        updates.p3_ready = true;
+                                    } else if (!freshRoom.p4_id && freshRoom.maxPlayers >= 4) {
+                                        updates.p4_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                        updates.p4_name = randomName;
+                                        updates.p4_chips = 2500;
+                                        updates.p4_status = "active";
+                                        updates.p4_ready = true;
+                                    }
 
                                     let nextPlayersCount = freshRoom.playersCount + 1;
                                     updates.playersCount = nextPlayersCount;
@@ -3022,24 +3056,20 @@
                 }
             }
 
-            // 1. Стандартный слушатель
+            // 1. Стандартный живой слушатель изменений всей комнаты
             database.ref('rooms/' + roomId).on('value', (snapshot) => {
                 processRoomData(snapshot.val());
             });
 
-            // 2. ЖЕЛЕЗНЫЙ БРОНЕБОЙНЫЙ ИНТЕРВАЛ ОПРОСА (Для Хоста и Гостя)
-            // Каждые 1.5 секунды принудительно качаем снимок базы, пробивая любые сетевые блокировки!
-            window.hostPollingId = setInterval(() => {
-                database.ref('rooms/' + roomId).once('value').then((pollingSnap) => {
-                    let pollingRoom = pollingSnap.val();
-                    if (!pollingRoom) {
-                        clearInterval(window.hostPollingId);
-                        window.hostPollingId = null;
-                        return;
-                    }
-                    processRoomData(pollingRoom);
+            // 2. ЖЕЛЕЗНЫЙ ПРЯМОЙ СЛУШАТЕЛЬ КОЛОКОЛА (Пинок синхронизации)
+            // Как только гость заходит или меняет готовность — он бьет по этой ветке, 
+            // заставляя хост экстренно стянуть свежий слепок комнаты напрямую через .once()
+            database.ref('rooms/' + roomId + '/force_sync_trigger').on('value', (snapshot) => {
+                console.log("РАДАР: Пойман прямой сетевой сигнал force_sync_trigger! Форсируем синхронизацию...");
+                database.ref('rooms/' + roomId).once('value').then((snap) => {
+                    processRoomData(snap.val());
                 });
-            }, 1500);
+            });
         }
 
 
