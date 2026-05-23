@@ -2947,7 +2947,7 @@
         }
 
 
-         // Сетевая слежка за столом (Железный фикс синхронизации через лобовой триггер пинка)
+        // Сетевая слежка за столом (Полная боевая сборка: Хост + Гость + Боты + Пинок готовности)
         function listenRoomStatusChanges(roomId) {
             if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
             if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
@@ -2965,15 +2965,16 @@
                     return;
                 }
 
-                console.log("РАДАР МГНОВЕННО ПОЙМАЛ ОБНОВЛЕНИЕ СЕТИ! Статус:", room.status);
+                console.log("РАДАР МГНОВЕННО ПОЙМАЛ ОБНОВЛЕНИЕ СЕТИ! Статус стола:", room.status, "Игроков:", room.playersCount);
 
+                // ЖЕЛЕЗНЫЙ ВЫНОС: Перерисовка сукна работает ВСЕГДА и для ВСЕХ, без привязки к ID хоста!
                 try {
                     renderOnlineMatchUiAndCards(room);
                 } catch(e) {
                     console.error("Критическая ошибка в отрисовке сукна:", e);
                 }
 
-                // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА
+                // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА (Выполняет строго p1)
                 if (room.p1_id === currentUserId && room.status === "playing") {
                     // Если карт еще нет, но запущен принудительный старт или все подтвердили готовность
                     if (!room.p1_cards) {
@@ -3006,7 +3007,7 @@
                     }
                 }
 
-                // ЛОГИКА ОЖИДАНИЯ БОТОВ (Для режима waiting)
+                // ЛОГИКА ОЖИДАНИЯ БОТОВ (Для режима waiting — выполняет строго Хост стола p1)
                 if (room.p1_id === currentUserId && room.status === "waiting") {
                     if (room.playersCount < room.maxPlayers) {
                         if (!botTimerId) {
@@ -3019,7 +3020,7 @@
 
                                     const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K"];
                                     let randomName = humanNames[Math.floor(Math.random() * humanNames.length)];
-                    
+            
                                     let updates = {};
                                     if (!freshRoom.p2_id) {
                                         updates.p2_id = "bot_" + Math.random().toString(36).substr(2, 9);
@@ -3062,17 +3063,14 @@
             });
 
             // 2. ЖЕЛЕЗНЫЙ ПРЯМОЙ СЛУШАТЕЛЬ КОЛОКОЛА (Пинок синхронизации)
-            // Как только гость заходит или меняет готовность — он бьет по этой ветке, 
-            // заставляя хост экстренно стянуть свежий слепок комнаты напрямую через .once()
+            // Любой игрок дергает эту ветку -> ОБОИХ принудительно швыряет в скачивание свежих данных и рендер!
             database.ref('rooms/' + roomId + '/force_sync_trigger').on('value', (snapshot) => {
-                console.log("РАДАР: Пойман прямой сетевой сигнал force_sync_trigger! Форсируем синхронизацию...");
+                console.log("РАДАР: Пойман прямой сетевой сигнал force_sync_trigger! Выполняем экстренную синхронизацию...");
                 database.ref('rooms/' + roomId).once('value').then((snap) => {
                     processRoomData(snap.val());
                 });
             });
         }
-
-
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
         function exitFromOnlineRoom() {
