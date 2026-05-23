@@ -1333,7 +1333,8 @@
 
             if (res.chips < ante) return; // Защита от нулевого баланса
 
-            currentRoomId = "room_" + currentUserId;
+            let safeId = String(currentUserId).replace(/[\.\$\#\[\]\/]/g, "").trim();
+            currentRoomId = "room_" + safeId;
 
             // Расширенная архитектура стола
             let roomData = {
