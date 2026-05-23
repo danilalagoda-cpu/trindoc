@@ -1966,8 +1966,8 @@
             });
         }
 
-        // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
-          function renderOnlineMatchUiAndCards(room) {
+                // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
+        function renderOnlineMatchUiAndCards(room) {
             if (!room) return;
 
             if (document.getElementById('match-pot-val')) {
@@ -1996,7 +1996,7 @@
 
             const mySeat = allSeats[mySeatIndex];
 
-            // --- ОТРИСОВКА ВАШИХ КАРТ (СНИЗУ) ---
+            // --- РЕНДЕР КАРТ ИГРОКА (СНИЗУ) ---
             const pContainer = document.getElementById('m-cards-player');
             if (pContainer) {
                 pContainer.innerHTML = '';
@@ -2025,42 +2025,41 @@
                 }
             }
 
-            let opponents = [];
-            for (let i = 1; i < 4; i++) {
-                let opponentIndex = (mySeatIndex + i) % 4;
-                opponents.push(allSeats[opponentIndex]);
-            }
-
-            // --- ОТРИСОВКА ОППОНЕНТОВ С УЧЕТОМ ЛИМИТА МЕСТ ---
-            const oppUiMap = [
-                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 }, // Лево
-                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх
-                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право
+            // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ ---
+            const seatsConfig = [
+                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', step: 1 },
+                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', step: 2 },
+                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', step: 3 }
             ];
 
-            oppUiMap.forEach((ui) => {
-                const opp = opponents[ui.index];
-                const cardsCont = document.getElementById(ui.containerId);
-                const boxEl = document.getElementById(ui.boxId);
-        
+            let maxP = parseInt(room.maxPlayers) || 4;
+
+            seatsConfig.forEach((cfg) => {
+                const cardsCont = document.getElementById(cfg.containerId);
+                const boxEl = document.getElementById(cfg.boxId);
                 if (!cardsCont || !boxEl) return;
 
-                // Фильтр лимита мест (скрываем лишние физически)
-                let isSeatValidForLimit = true;
-                let maxP = parseInt(room.maxPlayers) || 4;
-                if (maxP === 2 && ui.boxId !== 'seat-opp-top') isSeatValidForLimit = false;
-                if (maxP === 3 && ui.boxId === 'seat-opp-right') isSeatValidForLimit = false;
-
-                if (!isSeatValidForLimit) {
-                    boxEl.style.display = 'none';
-                    return;
+                let targetSeatIndex;
+                if (maxP === 2) {
+                    if (cfg.boxId !== 'seat-opp-top') {
+                        boxEl.style.display = 'none';
+                        return;
+                    }
+                    targetSeatIndex = mySeatIndex === 0 ? 1 : 0;
+                } else {
+                    if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
+                        boxEl.style.display = 'none';
+                        return;
+                    }
+                    targetSeatIndex = (mySeatIndex + cfg.step) % 4;
                 }
 
                 boxEl.style.display = 'block';
                 boxEl.style.outline = "none";
                 boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
-                // ЖЕЛЕЗНЫЙ ФИКС: Если ID игрока существует, рендерим его, даже если статус "empty"
+                const opp = allSeats[targetSeatIndex];
+
                 if (opp && opp.id) {
                     cardsCont.innerHTML = '';
 
@@ -2087,18 +2086,20 @@
                         boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
                     }
 
-                    let nameField = document.getElementById(ui.bubbleId);
+                    let nameField = document.getElementById(cfg.bubbleId);
                     if (nameField) {
                         nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
                     }
             
-                    let chipsField = document.getElementById(ui.chipsId);
-                    if (chipsField) chipsField.innerText = opp.chips || "0";
+                    let chipsField = document.getElementById(cfg.chipsId);
+                    if (chipsField) {
+                        chipsField.innerText = opp.chips || "0";
+                    }
                 } else {
                     cardsCont.innerHTML = '';
-                    let nameField = document.getElementById(ui.bubbleId);
+                    let nameField = document.getElementById(cfg.bubbleId);
                     if (nameField) nameField.innerText = "Ожидание...";
-                    let chipsField = document.getElementById(ui.chipsId);
+                    let chipsField = document.getElementById(cfg.chipsId);
                     if (chipsField) chipsField.innerText = "0";
                 }
             });
@@ -2114,7 +2115,6 @@
                 }
             }
         }
-
 
                 // --- ЧАСТЬ 9: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
 
@@ -2740,7 +2740,7 @@
             });
         }
 
-          function enterOnlineMatchLayout(room) {
+         function enterOnlineMatchLayout(room) {
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
             if (document.getElementById('screen-match')) document.getElementById('screen-match').style.display = 'flex';
 
@@ -2756,53 +2756,56 @@
             ];
 
             const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
-            if (mySeatIndex !== -1) {
-                document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
-                document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
+            if (mySeatIndex === -1) return;
 
-                let opponents = [];
-                for (let i = 1; i < 4; i++) {
-                    let opponentIndex = (mySeatIndex + i) % 4;
-                    opponents.push(allSeats[opponentIndex]);
-                }
+            // 1. Отрисовка себя снизу
+            document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
+            document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
 
-                // Карта привязки UI-элементов под кресла
-                const oppUiMap = [
-                    { boxId: 'seat-opp-left', nameId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 },  // Лево
-                    { boxId: 'seat-opp-top', nameId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },   // Верх
-                    { boxId: 'seat-opp-right', nameId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право
-                ];
+            // 2. Распределяем остальных по креслам относительно нас
+            const seatsConfig = [
+                { boxId: 'seat-opp-left', nameId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', step: 1 },  // +1 шаг = Лево
+                { boxId: 'seat-opp-top', nameId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', step: 2 },   // +2 шага = Верх
+                { boxId: 'seat-opp-right', nameId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', step: 3 } // +3 шага = Право
+            ];
 
-                oppUiMap.forEach((ui) => {
-                    const opp = opponents[ui.index];
-                    const boxEl = document.getElementById(ui.boxId);
-                    if (!boxEl) return;
+            let maxP = parseInt(room.maxPlayers) || 4;
 
-                    // Проверяем, должно ли это кресло физически существовать при текущем лимите стола
-                    let isSeatValidForLimit = true;
-                    let maxP = parseInt(room.maxPlayers) || 4;
-            
-                    if (maxP === 2 && ui.boxId !== 'seat-opp-top') isSeatValidForLimit = false; // На двоих оставляем ТОЛЬКО верхнее кресло
-                    if (maxP === 3 && ui.boxId === 'seat-opp-right') isSeatValidForLimit = false; // На троих убираем правое кресло
+            seatsConfig.forEach(cfg => {
+                const boxEl = document.getElementById(cfg.boxId);
+                if (!boxEl) return;
 
-                    if (!isSeatValidForLimit) {
-                        boxEl.style.display = 'none'; // Полностью прячем кресло из верстки
+                // Если игра на двоих, то единственный соперник ВСЕГДА рендерится на верхнем кресле
+                let targetSeatIndex;
+                if (maxP === 2) {
+                    if (cfg.boxId !== 'seat-opp-top') {
+                        boxEl.style.display = 'none';
                         return;
                     }
-
-                    boxEl.style.display = 'block';
-
-                    // ЖЕЛЕЗНЫЙ ФИКС: Проверяем наличие игрока по его ID, игнорируя кривой статус из базы
-                    if (opp && opp.id) {
-                        document.getElementById(ui.nameId).innerText = opp.name;
-                        document.getElementById(ui.chipsId).innerText = opp.chips;
-                    } else {
-                        document.getElementById(ui.nameId).innerText = "Ожидание...";
-                        document.getElementById(ui.chipsId).innerText = "0";
+                    // Находим индекс соперника (он не равен нашему mySeatIndex)
+                    targetSeatIndex = mySeatIndex === 0 ? 1 : 0;
+                } else {
+                    // Для 3 и 4 игроков оставляем стандартный круговой обход
+                    if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
+                        boxEl.style.display = 'none';
+                        return;
                     }
-                });
-            }
+                    targetSeatIndex = (mySeatIndex + cfg.step) % 4;
+                }
+
+                boxEl.style.display = 'block';
+                const opp = allSeats[targetSeatIndex];
+
+                if (opp && opp.id) {
+                    document.getElementById(cfg.nameId).innerText = opp.name;
+                    document.getElementById(cfg.chipsId).innerText = opp.chips;
+                } else {
+                    document.getElementById(cfg.nameId).innerText = "Ожидание...";
+                    document.getElementById(cfg.chipsId).innerText = "0";
+                }
+            });
         }
+
 
 
          // Генерация и перемешивание колоды из 36 карт (от Шестерки до Туза)
