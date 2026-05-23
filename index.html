@@ -3021,6 +3021,23 @@
             if (typeof switchMainTab === "function") switchMainTab('tab-lobby');
         }
 
+                // ЖЕЛЕЗНЫЙ БЛОКИРОВЩИК МОБИЛЬНОГО ПРИБЛИЖЕНИЯ (Защита от двойного тапа и пинча)
+        document.addEventListener('touchstart', function (event) {
+            if (event.touches.length > 1) {
+                event.preventDefault(); // Запрещаем увеличение двумя пальцами (пинч)
+            }
+        }, { passive: false });
+
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            let now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault(); // Намертво глушим двойной тап (интервал меньше 300мс)
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+
     </script>
 </body>
 </html>
