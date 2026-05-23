@@ -1947,9 +1947,7 @@
             });
         }
 
-
-
-                // Сетевая кнопка «Посмотреть карты» — выход из режима «Вслепую»
+        // Сетевая кнопка «Посмотреть карты» — выход из режима «Вслепую»
         function actionLookHand() {
             if (!currentRoomId) return;
 
@@ -1969,10 +1967,16 @@
                 database.ref('rooms/' + currentRoomId).update(updates).then(() => {
                     let myCards = room[myKey + '_cards'] || [];
                     let score = calculateOnlineHandScore(myCards);
-                    appendRoomSystemMessage(`Вы посмотрели карты. Сила масти: ${score} очков.`);
+            
+                    // ЖЕЛЕЗНЫЙ ФИКС ЧАТА: убрали падающий appendRoomSystemMessage, пишем строго в консоль!
+                    console.log(`[СЕТЬ] Карты успешно открыты локально. Сила масти: ${score} очков.`);
+            
+                    // Форсируем перерисовку нашего сукна, чтобы рубашки карт сменились на номиналы
+                    renderOnlineMatchUiAndCards(room);
                 });
             });
         }
+
 
         // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
         function renderOnlineMatchUiAndCards(room) {
@@ -2935,27 +2939,28 @@
         }
 
 
-          // Сетевая слежка за столом (Железный фикс синхронизации Хоста и Гостя)
+         // Сетевая слежка за столом (Железный фикс синхронизации Хоста через принудительный пинг)
         function listenRoomStatusChanges(roomId) {
             if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+            // Очищаем старый интервал опроса, если он был
+            if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
 
             console.log("РАДАР: Запуск агрессивной слежки за комнатой:", roomId);
 
-            // Сбрасываем старые подписки на этот путь, чтобы избежать наслоений колбэков
+            // Сбрасываем старые подписки на этот путь, чтобы избежать наслоений
             database.ref('rooms/' + roomId).off();
 
-            // Включаем живое прослушивание базы данных
-            database.ref('rooms/' + roomId).on('value', (snapshot) => {
-                let room = snapshot.val();
+            // Функция, которая обрабатывает данные комнаты
+            function processRoomData(room) {
                 if (!room) {
                     console.log("РАДАР: Комната не найдена на сервере.");
                     if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+                    if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
                     return;
                 }
 
-                console.log("РАДАР СРАБОТАЛ! Статус комнаты в базе:", room.status, "Игроков:", room.playersCount);
+                console.log("РАДАР СРАБОТАЛ! Статус комнаты:", room.status, "Игроков:", room.playersCount);
 
-                // Форсируем перерисовку экрана при абсолютно любом изменении в базе данных!
                 try {
                     renderOnlineMatchUiAndCards(room);
                 } catch(e) {
@@ -2964,23 +2969,13 @@
 
                 // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА
                 if (room.p1_id === currentUserId && room.status === "playing") {
-                    // Если карт еще нет, но запущен принудительный старт или все подтвердили готовность
-                    if (!room.p1_cards) {
-                        let totalPlayers = 0;
-                        let readyPlayers = 0;
-                        ['p1', 'p2', 'p3', 'p4'].forEach(s => {
-                            if (room[s + '_id']) {
-                                totalPlayers++;
-                                if (room[s + '_ready'] === true) readyPlayers++;
-                            }
-                        });
+                    // Если игра перешла в старт, выключаем пинг-опрос ожидания
+                    if (window.hostPollingId) { clearInterval(window.hostPollingId); window.hostPollingId = null; }
 
-                        // ЖЕЛЕЗНЫЙ ТРИГГЕР: Если все живые/боты нажали «ГОТОВ» и лимит мест стола заполнен
-                        if (readyPlayers >= totalPlayers && totalPlayers >= parseInt(room.maxPlayers)) {
-                            console.log("РАДАР: Все игроки подтвердили готовность. Хост автоматически сдает карты...");
-                            startHandLogic();
-                            return;
-                        }
+                    if (!room.p1_cards) {
+                        console.log("РАДАР: Хост зафиксировал старт игры! Раздаем карты...");
+                        startHandLogic(); 
+                        return;
                     }
 
                     // Проверка ходов ботов
@@ -2997,11 +2992,9 @@
 
                 // ЛОГИКА ОЖИДАНИЯ БОТОВ (Для режима waiting)
                 if (room.p1_id === currentUserId && room.status === "waiting") {
-                    console.log("ОТЛАДКА: Мы хост, комната в режиме waiting. Проверяем лимиты...");
-            
                     if (room.playersCount < room.maxPlayers) {
                         if (!botTimerId) {
-                            let delay = 5000; // 5 секунд ожидания перед ботом
+                            let delay = 5000; 
                             botTimerId = setTimeout(() => {
                                 botTimerId = null;
                                 database.ref('rooms/' + roomId).once('value').then((freshSnap) => {
@@ -3017,7 +3010,7 @@
                                         updates.p2_name = randomName;
                                         updates.p2_chips = 2500;
                                         updates.p2_status = "active";
-                                        updates.p2_ready = true; // Боты сразу заходят в режиме готовности к раздаче!
+                                        updates.p2_ready = true;
                                     } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
                                         updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
                                         updates.p3_name = randomName;
@@ -3044,13 +3037,37 @@
                             }, delay);
                         }
                     }
-                } else {
-                    if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                 }
+            }
+
+            // 1. Стандартный слушатель Firebase
+            database.ref('rooms/' + roomId).on('value', (snapshot) => {
+                processRoomData(snapshot.val());
             }, (error) => {
-                console.error("КРИТИЧЕСКАЯ ОШИБКА СЕТЕВОГО СЛУШАТЕЛЯ Firebase:", error);
+                console.error("ОШИБКА Firebase:", error);
+            });
+
+            // 2. ЖЕЛЕЗНЫЙ ПОЛЛИНГ ПОДСТРАХОВКИ: Каждые 2 секунды Хост принудительно запрашивает снимок,
+            // чтобы мгновенно увидеть зашедшего Гостя, если сокеты "уснули"
+            database.ref('rooms/' + roomId).once('value').then((snap) => {
+                let r = snap.val();
+                if (r && r.p1_id === currentUserId && r.status === "waiting") {
+                    window.hostPollingId = setInterval(() => {
+                        database.ref('rooms/' + roomId).once('value').then((pollingSnap) => {
+                            let pollingRoom = pollingSnap.val();
+                            // Если комната перешла в режим игры или удалена — тушим таймер опроса
+                            if (!pollingRoom || pollingRoom.status !== "waiting") {
+                                clearInterval(window.hostPollingId);
+                                window.hostPollingId = null;
+                            }
+                            // Передаем данные в обработчик
+                            processRoomData(pollingRoom);
+                        });
+                    }, 2000); // Интервал опроса — 2 секунды
+                }
             });
         }
+
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
         function exitFromOnlineRoom() {
