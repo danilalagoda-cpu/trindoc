@@ -378,12 +378,12 @@
 
                     <h4 style="color:#ecc94b; margin:4px 0 0 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">🔥 КОМБИНАЦИИ ТРИПЛЕТОВ (БЬЮТ ВСЁ):</h4>
                     <ul style="margin:0; padding-left:20px; color:#a0aec0; display:flex; flex-direction:column; gap:4px; font-size:12px;">
-                        <li><span style="color:#10b981; font-weight:bold;">3 ТУЗА (Т-Т-Т)</span> — главная комбинация игры, весит <span style="color:#fff; font-weight:bold;">33 очка</span>.</li>
+                        <li><span style="color:#10b981; font-weight:bold;">3 ТУЗА (Т-Т-Т)</span> — главная комбинация игры, весит <span style="color:#fff; font-weight:bold;">35 очков</span>.</li>
                         <li><span style="color:#3b82f6; font-weight:bold;">ЛЮБОЙ ДРУГОЙ ТРИПЛЕТ</span> (например: Д-Д-Д или 10-10-10) — весит ровно <span style="color:#fff; font-weight:bold;">34 очка</span> и бьет любые мастевые комбинации.</li>
                     </ul>
 
                     <h4 style="color:#ef4444; margin:4px 0 0 0; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">🛑 ЗАПРЕТЫ И АНТИЧИТ:</h4>
-                    <p style="margin:0; color:#a0aec0; font-size:12px;">Любые попытки взлома локальной памяти устройства через F12/ArtMoney мгновенно сжигают аккаунт на сервере Firebase благодаря защите <b>MTS Shield</b>.</p>
+                    <p style="margin:0; color:#a0aec0; font-size:12px;">Любые попытки взлома локальной памяти устройства мгновенно сжигают аккаунт на сервере благодаря защите <b>MTS Shield</b>.</p>
                 </div>
             </div>
         </div>
@@ -1852,7 +1852,7 @@
 
             // 1. ПРОВЕРКА НА ТРИПЛЕТ (Три одинаковых ранга)
             if (cards.length === 3 && cards[0].rank === cards[1].rank && cards[1].rank === cards[2].rank) {
-                if (cards[0].rank === 'Т') return 33; // 3 Туза = 33 очка
+                if (cards[0].rank === 'Т') return 35; // 3 Туза = 35 очков
                 return 34; // Любой другой триплет = 34 очка
             }
 
@@ -1963,24 +1963,22 @@
             });
         }
 
-                // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
+        // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
         function renderOnlineMatchUiAndCards(room) {
             if (!room) return;
 
-            // 1. Синхронизируем общий банк стола и блокировку кнопки раздачи
+            // 1. Синхронизируем общий банк стола
             if (document.getElementById('match-pot-val')) {
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
-            
-            // Умная настройка кнопки раздачи карт на сукне (Фикс под твинки и телефоны)
+    
+            // Настройка кнопки раздачи карт на сукне
             const dealBtn = document.getElementById('m-btn-deal');
             if (dealBtn) {
-                // Кнопка физически видна только Хосту стола (p1) и доступна только вне активного раунда
                 if (room.p1_id === currentUserId) {
                     dealBtn.style.display = "block";
                     dealBtn.disabled = (room.status === "playing");
                 } else {
-                    // Гости кнопку не видят вообще, для них кон стартует автоматически по сети
                     dealBtn.style.display = "none";
                 }
             }
@@ -1993,8 +1991,8 @@
                 { key: 'p4', id: room.p4_id, name: room.p4_name, chips: room.p4_chips, cards: room.p4_cards, bet: room.p4_bet, status: room.p4_status }
             ];
 
-            // Находим наше кресло строго по текстовому Никнейму
-            const mySeatIndex = allSeats.findIndex(seat => seat.name === localUser.nick);
+            // Ищем наше кресло по уникальному ID
+            const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
             if (mySeatIndex === -1) return;
 
             const mySeat = allSeats[mySeatIndex];
@@ -2003,9 +2001,9 @@
             const pContainer = document.getElementById('m-cards-player');
             if (pContainer) {
                 pContainer.innerHTML = '';
-                
-                // Включаем интерактивные кнопки ходов, только если сейчас ХОДИТЕ ВЫ
-                let isMyTurn = (room.turn === mySeat.id && room.status === "playing");
+        
+                // Включаем интерактивные кнопки ходов, если в поле turn записан наш ID или имя нашего кресла
+                let isMyTurn = ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing");
                 document.getElementById('m-btn-look').disabled = (room.status !== "playing" || mySeat.status !== "active");
                 document.getElementById('m-btn-check').disabled = !isMyTurn;
                 document.getElementById('m-btn-raise').disabled = !isMyTurn;
@@ -2014,19 +2012,16 @@
                 if (mySeat.cards && mySeat.cards.length > 0) {
                     mySeat.cards.forEach((c, idx) => {
                         let div = document.createElement('div');
-                        
-                        // Механика «Вслепую» — если режим слепой и мы еще не прожали кнопку просмотра карт
+                
                         if (room.mode === 'blind' && !mySeat.hasLooked && room.status === "playing") {
                             div.className = 'playing-card card-back';
                             if (localUser.activeShirt === 'shirt_blue') div.style.backgroundColor = '#1e3a8a';
                             if (localUser.activeShirt === 'shirt_purple') div.style.backgroundColor = '#581c87';
                         } else {
-                            // Обычные открытые карты с разметкой Секи
                             div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
                             div.innerHTML = `<div>${c.rank}</div><div class="card-suit-center">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
                         }
-                        
-                        // Накладываем легкий CSS-эффект наклона веера под хват пальца
+                
                         div.style.marginLeft = idx > 0 ? "-28px" : "0px";
                         div.style.transform = `rotate(${(idx - 1) * 6}deg) translateY(${(idx === 1) ? "-4px" : "0px"})`;
                         pContainer.appendChild(div);
@@ -2041,20 +2036,18 @@
                 opponents.push(allSeats[opponentIndex]);
             }
 
-            // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ (ЖЕЛЕЗНЫЙ ФИКС НАЛОЖЕНИЯ) ---
-            // Оставляем только один правильный массив с индексами для разворота зеркала
+            // --- БЛОК 3: ОТРИСОВКА КАРТ И СТАВОК ДЛЯ 3-Х ОППОНЕНТОВ (ГЕОМЕТРИЧЕСКИЙ ФИКС) ---
             const oppUiMap = [
-                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 2 }, // Лево -> opponents[2]
-                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх -> opponents[1]
-                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 0 } // Право -> opponents[0]
+                { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', index: 0 }, // Лево -> opponents[0] (Первый по часовой)
+                { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', index: 1 },  // Верх -> opponents[1] (Второй по часовой)
+                { containerId: 'm-cards-bot3', boxId: 'seat-opp-right', bubbleId: 'm-label-opp-name-right', chipsId: 'm-chips-bot3', index: 2 } // Право -> opponents[2] (Третий по часовой)
             ];
 
-            // Модифицированный цикл отрисовки карт оппонентов под новые индексы
             oppUiMap.forEach((ui) => {
-                const opp = opponents[ui.index]; // Подхватываем правильный индекс зеркала
+                const opp = opponents[ui.index];
                 const cardsCont = document.getElementById(ui.containerId);
                 const boxEl = document.getElementById(ui.boxId);
-                
+        
                 if (!cardsCont || !boxEl) return;
 
                 boxEl.style.outline = "none";
@@ -2081,7 +2074,8 @@
                         });
                     }
 
-                    if (room.turn === opp.id && room.status === "playing") {
+                    // Подсветка активного хода оппонента (Проверяем ID или ключ кресла)
+                    if ((room.turn === opp.id || room.turn === opp.key) && room.status === "playing") {
                         boxEl.style.outline = "2px dashed #3b82f6";
                         boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
                     }
@@ -2090,19 +2084,21 @@
                     if (nameField) {
                         nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
                     }
-                    
+            
                     let chipsField = document.getElementById(ui.chipsId);
                     if (chipsField) {
                         chipsField.innerText = opp.chips || "0";
                     }
+                } else {
+                    // Если кресло пустое, убираем старые карты предыдущих игр
+                    cardsCont.innerHTML = '';
                 }
             });
-
 
             // Подсвечиваем рамку нашего нижнего аватара, если ход ХОДИТЕ ВЫ
             const myBox = document.getElementById('m-profile-box');
             if (myBox) {
-                if (room.turn === mySeat.id && room.status === "playing") {
+                if ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing") {
                     myBox.style.borderColor = '#10b981';
                     myBox.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.6)";
                 } else {
@@ -2111,7 +2107,6 @@
                 }
             }
         }
-
 
                 // --- ЧАСТЬ 9: ИСКУССТВЕННЫЙ ИНТЕЛЛЕКТ И ПЕРЕХОД ПО СТАДИЯМ ---
 
@@ -2226,108 +2221,122 @@
             });
         }
 
-        // Логика Алексея [Скала]
-        function runBot1AIBehavior() {
-            if (match.folded.bot1) {
-                match.currentTurn = 'bot2';
-                setTimeout(runBot2AIBehavior, 1000);
-                return;
-            }
+          // УНИВЕРСАЛЬНЫЙ СЕТЕВОЙ ИИ БОТОВ (Выполняется строго на устройстве Хоста)
+        function handleOnlineBotTurn(room, botSeat) {
+            // Защита от дублирования ходов: если бот уже думает, выходим
+            if (window.isBotThinking) return;
+            window.isBotThinking = true;
 
-            let b1Chips = parseInt(document.getElementById('m-chips-bot1').innerText);
-            let score = calculateHandScore(match.hands.bot1);
-            let diff = match.currentBet - match.bets.bot1;
+            console.log(`Робот на кресле ${botSeat} начинает обдумывать ход...`);
+
+            setTimeout(() => {
+                // Скачиваем свежий снимок, чтобы не перетереть чужие ставки
+                database.ref('rooms/' + currentRoomId).once('value').then((snapshot) => {
+                    let freshRoom = snapshot.val();
+                    // Проверяем, что игра еще идет и сейчас действительно ход этого бота
+                    if (!freshRoom || freshRoom.status !== 'playing' || freshRoom.turn !== freshRoom[botSeat + '_id']) {
+                        window.isBotThinking = false;
+                        return;
+                    }
+
+                    let botCards = freshRoom[botSeat + '_cards'];
+                    let botChips = freshRoom[botSeat + '_chips'] || 0;
+                    let botBet = freshRoom[botSeat + '_bet'] || 0;
             
-            // Если игрок темнит, Алексей паникует сильнее на 6 очков и легче сбрасывает карты
-            let panicPoints = !match.hasLooked ? 6 : 0;
+                    // Считаем очки бота по каноничным правилам
+                    let score = calculateOnlineHandScore(botCards);
+                    let diff = freshRoom.currentBet - botBet;
 
-            if (score < (14 + panicPoints) && diff > 0) {
-                match.folded.bot1 = true;
-                appendRoomChatMessage("Алексей [Скала]", "Ой, нет, я пасую. Слишком мутные ставки вслепую.");
-            } else if (score >= 20 && diff === 0 && Math.random() > 0.5 && b1Chips >= 100) {
-                // Рейз от Скалы при сильной руке
-                b1Chips -= 100;
-                match.bets.bot1 += 100;
-                match.pot += 100;
-                match.currentBet = match.bets.bot1;
-                appendRoomChatMessage("Алексей [Скала]", `У меня отличный расклад. Повышаю до ${match.currentBet}!`);
-            } else {
-                // Колл / Чек
-                if (b1Chips >= diff) {
-                    b1Chips -= diff;
-                    match.bets.bot1 += diff;
-                    match.pot += diff;
-                    appendRoomChatMessage("Алексей [Скала]", diff > 0 ? "Поддержу ставку, погнали." : "Чек.");
-                } else {
-                    match.folded.bot1 = true;
-                    appendRoomChatMessage("Алексей [Скала]", "Не хватает фишек. Пас.");
-                }
-            }
+                    let updates = {};
+                    let botName = freshRoom[botSeat + '_name'];
 
-            document.getElementById('m-chips-bot1').innerText = b1Chips;
-            renderSpecificBotGraphics('bot1', false);
-            syncMatchUiAndBubbles();
+                    // 1. ЛОГИКА ПАСА (Если карты слабые, а ставка высокая)
+                    if (score < 14 && diff > 0) {
+                        updates[botSeat + '_status'] = "folded";
+                        console.log(`${botName} пасует.`);
+                    } 
+                    // 2. ЛОГИКА РЕЙЗА +100 (Если карта сильная, стек позволяет и шанс 40%)
+                    else if (score >= 22 && diff === 0 && Math.random() < 0.4 && botChips >= 100) {
+                        let targetBet = freshRoom.currentBet + 100;
+                        let raiseDiff = targetBet - botBet;
 
-            match.currentTurn = 'bot2';
-            setTimeout(runBot2AIBehavior, 1000);
+                        updates.currentBet = targetBet;
+                        updates.pot = (freshRoom.pot || 0) + raiseDiff;
+                        updates[botSeat + '_bet'] = targetBet;
+                        updates[botSeat + '_chips'] = botChips - raiseDiff;
+                        console.log(`${botName} повышает до ${targetBet}`);
+                    } 
+                    // 3. ЛОГИКА ЧЕК / КОЛЛ (Уравниваем или говорим Чек)
+                    else {
+                        if (botChips >= diff) {
+                            updates.pot = (freshRoom.pot || 0) + diff;
+                            updates[botSeat + '_bet'] = freshRoom.currentBet;
+                            updates[botSeat + '_chips'] = botChips - diff;
+                            console.log(`${botName} уравнял / сказал Чек.`);
+                        } else {
+                            // Если фишек не хватает даже на Колл — пас
+                            updates[botSeat + '_status'] = "folded";
+                            console.log(`${botName} не хватило фишек, пас.`);
+                        }
+                    }
+
+                    // Переключаем ход на следующее кресло
+                    processNextOnlineTurn(freshRoom, updates, botSeat);
+                });
+            }, 1500); // Имитация «думания» бота 1.5 секунды
         }
 
-        // Логика Марии [Маньяк]
-        function runBot2AIBehavior() {
-            if (match.folded.bot2) {
-                proceedToNextPhaseOrShowdown();
-                return;
-            }
+        // Сетевой круговой переключатель хода для ОНЛАЙНА
+        function processNextOnlineTurn(room, updates, currentSeat) {
+            const seats = ['p1', 'p2', 'p3', 'p4'];
+            let currentIdx = seats.indexOf(currentSeat);
+    
+            let nextTurnId = null;
+            let loopCount = 0;
 
-            let b2Chips = parseInt(document.getElementById('m-chips-bot2').innerText);
-            let score = calculateHandScore(match.hands.bot2);
-            let diff = match.currentBet - match.bets.bot2;
-            
-            // У Марии фиксированный 35% шанс на блеф
-            let isBluffing = Math.random() < 0.35;
+            // Ищем следующее непустое и активное кресло по часовой стрелке
+            while (loopCount < 4) {
+                currentIdx = (currentIdx + 1) % 4;
+                let nextSeat = seats[currentIdx];
+        
+                let seatId = room[nextSeat + '_id'];
+                let seatStatus = updates[nextSeat + '_status'] || room[nextSeat + '_status'];
 
-            if ((isBluffing || score >= 13) && b2Chips >= diff) {
-                b2Chips -= diff;
-                match.bets.bot2 += diff;
-                match.pot += diff;
-                appendRoomChatMessage("Мария [Маньяк]", "Играем! Скидывайте фишки, слабаки!");
-                if (Math.random() < 0.4) {
-                    setTimeout(() => appendRoomStickerMessage("Мария [Маньяк]", "😎"), 400);
+                if (seatId && seatStatus === 'active') {
+                    nextTurnId = seatId;
+                    break;
                 }
-            } else {
-                match.folded.bot2 = true;
-                appendRoomChatMessage("Мария [Маньяк]", "Пас. Карты полная ерунда в этот раз.");
+                loopCount++;
             }
 
-            document.getElementById('m-chips-bot2').innerText = b2Chips;
-            renderSpecificBotGraphics('bot2', false);
-            syncMatchUiAndBubbles();
-
-            setTimeout(proceedToNextPhaseOrShowdown, 1200);
-        }
-
-        // МЕНЕДЖЕР ФАЗ: Добор 3-й карты или Финал
-        function proceedToNextPhaseOrShowdown() {
-            let activeCount = ['player', 'bot1', 'bot2'].filter(p => !match.folded[p]).length;
-
-            // Если остался один живой или это уже был второй раунд торгов — вскрываемся
-            if (activeCount <= 1 || match.roundStep >= 1) {
-                executeMatchShowdown();
-                return;
-            }
-
-            // Переход к Раунду 2: выдаем всем живым по 3-й карте (Ривер)
-            match.roundStep = 1;
-            match.currentTurn = 'player';
-            appendRoomSystemMessage("Раунд 2 (Финал). Сдается третья карта в руки! Время финального кона.");
-
-            ['player', 'bot1', 'bot2'].forEach(p => {
-                if (!match.folded[p]) match.hands[p].push(pullCardFromDeck());
+            // Считаем активных игроков, у которых статус "active" и они не скинули в этом ходу
+            let activePlayers = seats.filter(s => {
+                let id = room[s + '_id'];
+                let stat = updates[s + '_status'] || room[s + '_status'];
+                return id && stat === 'active';
             });
 
-            renderMatchCardsGraphics();
-            syncMatchUiAndBubbles();
+            // Условие Вскрытия: остался 1 игрок ИЛИ ход вернулся к первому, а ставки равны
+            // Для простоты авто-боя: если активных игроков <= 1 или круг завершился без рейзов
+            if (activePlayers.length <= 1 || !nextTurnId) {
+                updates.status = "showdown";
+                updates.turn = "";
+            } else {
+                updates.turn = nextTurnId;
+            }
+
+            // Снимаем флаг блокировки ИИ перед отправкой в сеть
+            window.isBotThinking = false;
+
+            // Пушим пакет обновлений в Firebase
+            database.ref('rooms/' + currentRoomId).update(updates).then(() => {
+                // Если перешли в Шоудаун — Хост запускает финал
+                if (updates.status === "showdown" && room.p1_id === currentUserId) {
+                    setTimeout(executeOnlineShowdownLogic, 1000);
+                }
+            });
         }
+
 
                 // --- ЧАСТЬ 10: ФИНАЛ, МЕССЕНДЖЕР И БОЕВОЙ ИНВЕНТАРЬ ЗА СТОЛОМ ---
 
@@ -2340,11 +2349,11 @@
                 if (!room || room.status !== 'showdown') return;
 
                 const seats = ['p1', 'p2', 'p3', 'p4'];
-        
+
                 let winnerSeatKey = null;
                 let winnerId = null;
                 let winnerName = "";
-        
+
                 // Временные переменные для поиска абсолютного лидера
                 let maxScore = -1;
                 let bestHandCards = null;
@@ -2356,16 +2365,14 @@
                     if (room[s + '_id'] && room[s + '_status'] === 'active') {
                         let currentCards = room[s + '_cards'] || [];
                         let score = calculateOnlineHandScore(currentCards);
-                
+        
                         if (score > maxScore) {
-                            // Нашли руку, которая сильнее просто по базовым очкам
                             maxScore = score;
                             winnerSeatKey = s;
                             winnerId = room[s + '_id'];
                             winnerName = room[s + '_name'];
                             bestHandCards = currentCards;
                         } else if (score === maxScore && score > 0) {
-                            // СПОРНАЯ СИТУАЦИЯ: Очки одинаковые! Запускаем тай-брейк по старшинству карт
                             let isCurrentStronger = false;
 
                             // Разбираем случай 1: Спор двух триплетов (у обоих по 34 очка)
@@ -2373,13 +2380,11 @@
                             let isBestTriplet = (bestHandCards && bestHandCards.length === 3 && bestHandCards[0].rank === bestHandCards[1].rank);
 
                             if (isCurrentTriplet && isBestTriplet) {
-                                // Побеждает триплет, у которого выше ранг карты (например, Короли бьют Дам)
                                 if (rankWeights[currentCards[0].rank] > rankWeights[bestHandCards[0].rank]) {
                                     isCurrentStronger = true;
                                 }
                             } else {
-                                // Разбираем случай 2: Спор равных очков по масти (например, 20 очков против 20 очков)
-                                // Ищем самую старшую карту в текущей руке и в руке лидера
+                                // Разбираем случай 2: Спор равных очков по масти
                                 let currentMaxCardWeight = Math.max(...currentCards.map(c => rankWeights[c.rank] || 0));
                                 let bestMaxCardWeight = Math.max(...bestHandCards.map(c => rankWeights[c.rank] || 0));
 
@@ -2388,7 +2393,6 @@
                                 }
                             }
 
-                            // Если текущая оспариваемая рука оказалась старше — переписываем победителя на неё
                             if (isCurrentStronger) {
                                 winnerSeatKey = s;
                                 winnerId = room[s + '_id'];
@@ -2400,40 +2404,73 @@
                 });
 
                 if (winnerSeatKey) {
-                    appendRoomSystemMessage(`ВСПРЫТИЕ! Победа по старшинству карт: ${winnerName} (${maxScore} оч.)! Выигрыш: +${room.pot} фишек.`);
-            
+                    appendRoomSystemMessage(`ВСКРЫТИЕ! Победа по старшинству карт: ${winnerName} (${maxScore} оч.)! Выигрыш: +${room.pot} фишек.`);
+    
+                    let finalPot = room.pot || 0;
                     let updates = {
-                        status: "waiting", // Возвращаем стол в ожидание нового кона
+                        status: "playing", // ЖЕЛЕЗНЫЙ ФИКС: Оставляем статус playing, чтобы не запускать подсадку ботов заново!
                         pot: 0,
                         currentBet: 0,
                         turn: ""
                     };
 
-                    // Начисляем фишки в стек победителя на сервере Firebase Europe
-                    updates[winnerSeatKey + '_chips'] = (room[winnerSeatKey + '_chips'] || 0) + room.pot;
+                    // Рассчитываем итоговый стек победителя в рамках комнаты
+                    let newWinnerChips = (room[winnerSeatKey + '_chips'] || 0) + finalPot;
+                    updates[winnerSeatKey + '_chips'] = newWinnerChips;
 
-                    // Если победили МЫ (Хост) — зачисляем выигрыш локально через MTS Античит
+                    // СИНХРОНИЗАЦИЯ ПРОФИЛЕЙ СЕТЕВЫХ ИГРОКОВ И ХОСТА
                     if (winnerId === currentUserId) {
+                        // Если выиграл Хост
                         let res = getSecureResources();
-                        res.chips += room.pot;
+                        res.chips += finalPot;
                         setSecureResources(res.chips, res.trinki);
                         saveUserProfileToCloud();
+                    } else if (winnerId && !winnerId.startsWith('bot_')) {
+                        // ЖЕЛЕЗНЫЙ ФИКС: Если выиграл другой реальный живой игрок — обновляем его глобальный профиль
+                        database.ref('users/' + winnerId + '/chips').once('value').then((userSnap) => {
+                            let globalChips = userSnap.val() || 0;
+                            database.ref('users/' + winnerId + '/chips').set(globalChips + finalPot);
+                        });
                     }
 
-                    // Очищаем карты всех кресел для подготовки к следующей раздаче
+                    // Очищаем карты всех кресел и проверяем, у кого не осталось денег
                     seats.forEach(s => {
                         updates[s + '_cards'] = [];
                         updates[s + '_bet'] = 0;
-                        if (room[s + '_id']) updates[s + '_status'] = "active";
+                
+                        // Если игрок сидит за столом
+                        if (room[s + '_id']) {
+                            let currentChips = updates[s + '_chips'] !== undefined ? updates[s + '_chips'] : (room[s + '_chips'] || 0);
+                    
+                            // Если у игрока или бота кончились фишки — переводим в пас/кикаем
+                            if (currentChips < (room.ante || 50)) {
+                                updates[s + '_status'] = "folded"; 
+                                appendRoomSystemMessage(`${room[s + '_name']} банкрот и выбывает из раздачи.`);
+                            } else {
+                                updates[s + '_status'] = "active"; // Готов к новому кону
+                            }
+                        }
                     });
 
-                    // Отправляем финальный пакет итогов торгов в Firebase
+                    // Отправляем итоги в Firebase
                     database.ref('rooms/' + currentRoomId).update(updates).then(() => {
                         refreshUiWalletsAndStyles();
+
+                        // АВТОМАТИЧЕСКИЙ ПЕРЕЗАПУСК СЛЕДУЮЩЕГО КОНА ЧЕРЕЗ 5 СЕКУНД
+                        console.log("Кон завершен. Сбор данных... Следующая раздача начнется через 5 секунд.");
+                        setTimeout(() => {
+                            // Проверяем, что комната все еще существует перед повторным стартом
+                            database.ref('rooms/' + currentRoomId).once('value').then((nextSnap) => {
+                                let nextRoom = nextSnap.val();
+                                if (nextRoom && nextRoom.status === "playing" && nextRoom.p1_id === currentUserId) {
+                                    startHandLogic(); // Запускаем вашу функцию раздачи на новый круг!
+                                }
+                            });
+                        }, 5000);
                     });
                 }
-            }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Теперь блок .then() закрыт корректно
-        } // <-- ЖЕЛЕЗНЫЙ ФИКС: Теперь сама функция полностью закрыта фигурной скобкой
+            }); 
+        }
 
 
         // --- ЛОГИКА ОТПРАВКИ И ОТОБРАЖЕНИЯ ЧАТА МАТЧА ---
@@ -2700,11 +2737,11 @@
             // Мгновенно переключаем экраны телефона: прячем лобби, включаем сукно
             if (document.getElementById('screen-dashboard')) document.getElementById('screen-dashboard').style.display = 'none';
             if (document.getElementById('screen-match')) document.getElementById('screen-match').style.display = 'flex';
-    
+
             if (document.getElementById('match-pot-val')) {
                 document.getElementById('match-pot-val').innerText = room.pot || "0";
             }
-    
+
             // Массив всех 4 кресел в базе данных комнаты
             const allSeats = [
                 { id: room.p1_id, name: room.p1_name, chips: room.p1_chips },
@@ -2713,31 +2750,31 @@
                 { id: room.p4_id, name: room.p4_name, chips: room.p4_chips }
             ];
 
-            // ЖЕЛЕЗНЫЙ ПОИСК: Ищем наше кресло строго по текстовому Никнейму
-            const mySeatIndex = allSeats.findIndex(seat => seat.name === localUser.nick);
-    
+            // ЖЕЛЕЗНЫЙ ПОИСК: Ищем наше кресло строго по уникальному ID пользователя
+            const mySeatIndex = allSeats.findIndex(seat => seat.id === currentUserId);
+
             if (mySeatIndex !== -1) {
                 // 1. Выводим наши данные в нижний (главный) аватар игрока
                 document.getElementById('m-label-username').innerText = allSeats[mySeatIndex].name;
                 document.getElementById('m-chips-player').innerText = allSeats[mySeatIndex].chips;
-        
-                // 2. Собираем список оппонентов, сдвигая массив по часовой стрелке относительно нас
+
+                // 2. Собираем список оппонентов строго по часовой стрелке относительно нас
                 let opponents = [];
                 for (let i = 1; i < 4; i++) {
                     let opponentIndex = (mySeatIndex + i) % 4;
                     opponents.push(allSeats[opponentIndex]);
                 }
 
-                // ЖЕЛЕЗНЫЙ ГЕОМЕТРИЧЕСКИЙ ФИКС ЗЕРКАЛА:
-                // opponents[2] -> Садится на ЛЕВОЕ кресло (Bot1)
-                // opponents[1] -> Садится на ВЕРХНЕЕ кресло (Bot2)
-                // opponents[0] -> Садится на ПРАВОЕ кресло (Bot3)
+                // ЖЕЛЕЗНЫЙ ГЕОМЕТРИЧЕСКИЙ ФИКС ЗЕРКАЛА (Строго по правилам Трыньки по часовой стрелке):
+                // opponents[0] -> Садится на ЛЕВОЕ кресло (Следующий за нами)
+                // opponents[1] -> Садится на ВЕРХНЕЕ кресло (Напротив нас)
+                // opponents[2] -> Садится на ПРАВОЕ кресло (Предыдущий перед нами)
 
-                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 2 из массива opponents)
-                if (opponents[2] && opponents[2].name) {
+                // 3. РЕНДЕР ЛЕВОГО ОППОНЕНТА (Индекс 0 из массива opponents)
+                if (opponents[0] && opponents[0].id) {
                     document.getElementById('seat-opp-left').style.display = 'block';
-                    document.getElementById('m-label-opp-name-left').innerText = opponents[2].name;
-                    document.getElementById('m-chips-bot1').innerText = opponents[2].chips;
+                    document.getElementById('m-label-opp-name-left').innerText = opponents[0].name;
+                    document.getElementById('m-chips-bot1').innerText = opponents[0].chips;
                 } else {
                     document.getElementById('seat-opp-left').style.display = (room.maxPlayers >= 2) ? 'block' : 'none';
                     document.getElementById('m-label-opp-name-left').innerText = "Ожидание...";
@@ -2745,7 +2782,7 @@
                 }
 
                 // 4. РЕНДЕР ВЕРХНЕГО ОППОНЕНТА (Индекс 1 из массива opponents)
-                if (opponents[1] && opponents[1].name) {
+                if (opponents[1] && opponents[1].id) {
                     document.getElementById('seat-opp-top').style.display = 'block';
                     document.getElementById('m-label-opp-name-top').innerText = opponents[1].name;
                     document.getElementById('m-chips-bot2').innerText = opponents[1].chips;
@@ -2755,11 +2792,11 @@
                     document.getElementById('m-chips-bot2').innerText = "0";
                 }
 
-                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 0 из массива opponents)
-                if (opponents[0] && opponents[0].name) {
+                // 5. РЕНДЕР ПРАВОГО ОППОНЕНТА (Индекс 2 из массива opponents)
+                if (opponents[2] && opponents[2].id) {
                     document.getElementById('seat-opp-right').style.display = 'block';
-                    document.getElementById('m-label-opp-name-right').innerText = opponents[0].name;
-                    document.getElementById('m-chips-bot3').innerText = opponents[0].chips;
+                    document.getElementById('m-label-opp-name-right').innerText = opponents[2].name;
+                    document.getElementById('m-chips-bot3').innerText = opponents[2].chips;
                 } else {
                     document.getElementById('seat-opp-right').style.display = (room.maxPlayers >= 4) ? 'block' : 'none';
                     document.getElementById('m-label-opp-name-right').innerText = "Ожидание...";
@@ -2769,16 +2806,18 @@
         }
 
 
-                // Генерация и перемешивание колоды из 24 карт (от Девятки до Туза)
+
+         // Генерация и перемешивание колоды из 36 карт (от Шестерки до Туза)
         function generateOnlineDeck() {
             const suits = ['♠', '♣', '♥', '♦'];
             const ranks = [
-                { name: '9', val: 9 }, { name: '10', val: 10 },
+                { name: '6', val: 6 },  { name: '7', val: 7 },  { name: '8', val: 8 },
+                { name: '9', val: 9 },  { name: '10', val: 10 },
                 { name: 'В', val: 10 }, { name: 'Д', val: 10 },
                 { name: 'К', val: 10 }, { name: 'Т', val: 11 }
             ];
             let deck = [];
-    
+
             suits.forEach(suit => {
                 ranks.forEach(rank => {
                     deck.push({
@@ -2791,13 +2830,14 @@
                 });
             });
 
-            // Алгоритм Фишера-Йетса для честного случайного перемешивания карты
+            // Алгоритм Фишера-Йетса для честного случайного перемешивания карт
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
             return deck;
         }
+
 
          // Сетевая слежка за столом и плавная подсадка ботов (точечно для Создателя)
         function listenRoomStatusChanges(roomId) {
@@ -2814,57 +2854,87 @@
                 // ЖЕЛЕЗНЫЙ СЕТЕВОЙ ФИКС: Рендерим карты, бабблы и ставки всех 4 игроков в реальном времени!
                 renderOnlineMatchUiAndCards(room);
 
+                // АВТОМАТИЧЕСКИЙ ТРИГГЕР СТАРТА РАЗДАЧИ ДЛЯ ХОСТА
+                if (room.p1_id === currentUserId && room.status === "playing") {
+                    // Если статус сменился на игру, но карты еще не сгенерированы в БД — запускаем Секу!
+                    if (!room.p1_cards) {
+                        console.log("Стол укомплектован. Хост автоматически запускает раздачу карт...");
+                        startHandLogic(); 
+                        return;
+                    }
+
+                    // ЖЕЛЕЗНЫЙ ФИКС ХОДА БОТОВ: Если сейчас очередь ходить виртуальному игроку
+                    if (room.turn && room.turn.startsWith('bot_')) {
+                        // Ищем, на каком конкретно кресле сидит этот бот
+                        const seats = ['p1', 'p2', 'p3', 'p4'];
+                        let botSeat = seats.find(s => room[s + '_id'] === room.turn);
+                
+                        // Если кресло найдено и этот бот активен — запускаем для него ИИ (функция handleOnlineBotTurn)
+                        if (botSeat && room[botSeat + '_status'] === 'active') {
+                            if (typeof handleOnlineBotTurn === "function") {
+                                handleOnlineBotTurn(room, botSeat);
+                            }
+                        }
+                    }
+                }
+
                 // ЛОГИКА БОТОВ: Расчетом занимается строго Создатель стола и только в режиме ожидания
                 if (room.p1_id === currentUserId && room.status === "waiting") {
-        
-                    // Если лимит мест еще не достигнут — взводим или обновляем плавный таймер
+
+                    // Если лимит мест еще не достигнут
                     if (room.playersCount < room.maxPlayers) {
-            
-                        // Сбрасываем предыдущий тикающий таймер, чтобы избежать наслоений
-                        if (botTimerId) clearTimeout(botTimerId);
+    
+                        // ФИКС ЦИКЛА: Взводим таймер только если он ЕЩЕ НЕ запущен, чтобы сетевые апдейты не сбрасывали его
+                        if (!botTimerId) {
+                            // Первая фора для друзей — 30 сек, если кто-то уже сидит — бот зайдет быстрее (через 15 сек)
+                            let delay = (room.playersCount === 1) ? 30000 : 15000;
 
-                        // Первая фора для друзей — 30 сек, если кто-то уже сидит — бот зайдет быстрее (через 15 сек)
-                        let delay = (room.playersCount === 1) ? 30000 : 15000;
+                            botTimerId = setTimeout(() => {
+                                // Сбрасываем указатель перед асинхронным запросом
+                                botTimerId = null;
 
-                        botTimerId = setTimeout(() => {
-                            // Проверяем актуальное состояние комнаты перед инъекцией бота
-                            database.ref('rooms/' + roomId).once('value').then((freshSnap) => {
-                                let freshRoom = freshSnap.val();
-                                if (!freshRoom || freshRoom.status !== "waiting" || freshRoom.playersCount >= freshRoom.maxPlayers) return;
+                                // Проверяем актуальное состояние комнаты перед инъекцией бота
+                                database.ref('rooms/' + roomId).once('value').then((freshSnap) => {
+                                    let freshRoom = freshSnap.val();
+                                    if (!freshRoom || freshRoom.status !== "waiting" || freshRoom.playersCount >= freshRoom.maxPlayers) return;
 
-                                // Пул реалистичных никнеймов под обычных игроков
-                                const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K", "Dmitry_Poker", "Shadow", "Panda_Z", "Kasparov", "WildCard", "Tornado"];
-                                let randomName = humanNames[Math.floor(Math.random() * humanNames.length)];
-                                let randomChips = Math.floor(Math.random() * (3500 - 1200 + 1)) + 1200; // Стек от 1200 до 3500
+                                    // Пул реалистичных никнеймов под обычных игроков
+                                    const humanNames = ["GamerX", "LuckyStrike", "Aleksey_99", "Mariya_K", "Dmitry_Poker", "Shadow", "Panda_Z", "Kasparov", "WildCard", "Tornado"];
+                                    let randomName = humanNames[Math.floor(Math.random() * humanNames.length)];
+                                    let randomChips = Math.floor(Math.random() * (3500 - 1200 + 1)) + 1200; // Стек от 1200 до 3500
 
-                                let updates = {};
-                                // Ищем первое пустующее кресло для бота
-                                if (!freshRoom.p2_id) {
-                                    updates.p2_id = "bot_" + Math.random().toString(36).substr(2, 9);
-                                    updates.p2_name = randomName;
-                                    updates.p2_chips = randomChips;
-                                } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
-                                    updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
-                                    updates.p3_name = randomName;
-                                    updates.p3_chips = randomChips;
-                                } else if (!freshRoom.p4_id && freshRoom.maxPlayers >= 4) {
-                                    updates.p4_id = "bot_" + Math.random().toString(36).substr(2, 9);
-                                    updates.p4_name = randomName;
-                                    updates.p4_chips = randomChips;
-                                }
+                                    let updates = {};
+                                    // Ищем первое пустующее кресло для бота
+                                    if (!freshRoom.p2_id) {
+                                        updates.p2_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                        updates.p2_name = randomName;
+                                        updates.p2_chips = randomChips;
+                                    } else if (!freshRoom.p3_id && freshRoom.maxPlayers >= 3) {
+                                        updates.p3_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                        updates.p3_name = randomName;
+                                        updates.p3_chips = randomChips;
+                                    } else if (!freshRoom.p4_id && freshRoom.maxPlayers >= 4) {
+                                        updates.p4_id = "bot_" + Math.random().toString(36).substr(2, 9);
+                                        updates.p4_name = randomName;
+                                        updates.p4_chips = randomChips;
+                                    }
 
-                                let nextPlayersCount = freshRoom.playersCount + 1;
-                                updates.playersCount = nextPlayersCount;
+                                    let nextPlayersCount = freshRoom.playersCount + 1;
+                                    updates.playersCount = nextPlayersCount;
 
-                                // Если этот бот забил последнее доступное место — переводим стол в режим игры
-                                if (nextPlayersCount >= freshRoom.maxPlayers) {
-                                    updates.status = "playing";
-                                }
+                                    // Если этот бот забил последнее доступное место — переводим стол в режим игры
+                                    if (nextPlayersCount >= freshRoom.maxPlayers) {
+                                        updates.status = "playing";
+                                    }
 
-                                // Пушим бота в Firebase
-                                database.ref('rooms/' + roomId).update(updates);
-                            }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли колбэк метода .then()
-                        }, delay); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли круглую скобку setTimeout()
+                                    // Пушим бота в Firebase
+                                    database.ref('rooms/' + roomId).update(updates);
+                                }); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли колбэк метода .then()
+                            }, delay); // <-- ЖЕЛЕЗНЫЙ ФИКС: Закрыли круглую скобку setTimeout()
+                        }
+                    } else {
+                        // Если места забиты людьми, а статус еще waiting — тушим таймер
+                        if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                     }
                 } else {
                     // Если статус изменился на "playing" или мы не хост — тушим таймер подсадки
