@@ -902,8 +902,8 @@
             ],
             nicks: [
                 { id: "nick_green", name: "Зеленый Кибер-Ник", cost: 50, currency: "cash", styleClass: "style-green" },
-                { id: "nick_rainbow", name: "Радужный Градиент", cost: 150, currency: "cyber", styleClass: "style-rainbow" },
-                { id: "nick_vip", name: "Рамка-Змейка [ПРЕМИУМ]", cost: 400, currency: "cyber", styleClass: "style-vip-snake" }
+                { id: "nick_vip", name: "Рамка-Змейка", cost: 150, currency: "cash", styleClass: "style-vip-snake" }
+                { id: "nick_rainbow", name: "Радужный Градиент", cost: 499, currency: "cyber", styleClass: "style-rainbow" },
             ],
             privs: [
                 { id: "cheat", name: "Рентген-взлом", cost: 10, currency: "cyber", desc: "Показывает случайную карту оппонента в чате стола" },
@@ -913,9 +913,9 @@
         };
 
         const achievementsList = [
-            { id: "ach_1", title: "В СЕТИ СИНДИКАТА", desc: "Пройти верификацию и авторизоваться в системе клуба.", done: true },
+            { id: "ach_1", title: "В СЕТИ КЛУБА TRINDOC", desc: "Пройти верификацию и авторизоваться в системе клуба.", done: true },
             { id: "ach_2", title: "ЖЕЛЕЗНЫЙ БЛАНК", desc: "Разорить Алексея или Марию, сделав крупный Рейз вслепую.", done: false },
-            { id: "ach_3", title: "КОРОЛЬ МАСГЕЙ", desc: "Успешно собрать высшую комбинацию Триплет из трех Тузов.", done: false }
+            { id: "ach_3", title: "КОРОЛЬ МАСТЕЙ", desc: "Успешно собрать высшую комбинацию Триплет из трех Тузов.", done: false }
         ];
 
         // Добавляем продвинутые стили анимации
@@ -1289,14 +1289,24 @@
         }
 
         function activateNickStylePreset(selectedStyleClass) {
+            // Вставляем этот лог на самый вход
+            console.log("СТИЛЬ НИКА: Попытка активации класса:", selectedStyleClass);
+
             storeItems.nicks.forEach(item => {
                 item.isActive = (item.styleClass === selectedStyleClass);
             });
+    
+            localStorage.setItem('trindoc_active_nick_style', selectedStyleClass);
+            if (window.localUser) {
+                localUser.activeNickStyle = selectedStyleClass;
+            }
+
             saveUserProfileToCloud();
             refreshUiWalletsAndStyles();
             rebuildProfileSubTabs();
             rebuildStoreCards();
         }
+
 
         function activateCardShirtPreset(shirtId) {
             localUser.activeShirt = shirtId;
