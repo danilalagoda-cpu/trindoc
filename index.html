@@ -1891,11 +1891,12 @@
                 // 1. Генерируем сочную колоду Секи (36 карт)
                 let fullDeck = generateOnlineDeck();
                 let updates = {
-                    status: "playing",
-                    pot: 0,
-                    currentBet: room.ante || 50,
-                    turn: "p1" // ЖЕЛЕЗНЫЙ ФИКС: Создатель стола (кресло p1) всегда ходит первым!
+                  status: "playing",
+                  pot: 0,
+                  currentBet: room.ante || 50,
+                  turn: currentUserId // ЖЕЛЕЗНЫЙ ФИКС: Пишем системный ID хоста (например, "ivygood")
                 };
+
 
                 // Массив всех кресел для циклической раздачи карт
                 const seats = ['p1', 'p2', 'p3', 'p4'];
@@ -2032,34 +2033,63 @@
                 }
             }
 
-            // --- РЕНДЕР КАРТ ИГРОКА (СНИЗУ) ---
-            const pContainer = document.getElementById('m-cards-player');
-            if (pContainer) {
-                pContainer.innerHTML = '';
+                        // --- РЕНДЕР КАРТ ИГРОКА (СНИЗУ) + ВЫВОД ОЧКОВ ---
+             const pContainer = document.getElementById('m-cards-player');
+             if (pContainer) {
+                 pContainer.innerHTML = '';
 
-                let isMyTurn = ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing");
-                document.getElementById('m-btn-look').disabled = (room.status !== "playing" || mySeat.status === "folded");
-                document.getElementById('m-btn-check').disabled = !isMyTurn;
-                document.getElementById('m-btn-raise').disabled = !isMyTurn;
-                document.getElementById('m-btn-fold').disabled = !isMyTurn;
+                 let isMyTurn = ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing");
+                 document.getElementById('m-btn-look').disabled = (room.status !== "playing" || mySeat.status === "folded");
+                 document.getElementById('m-btn-check').disabled = !isMyTurn;
+                 document.getElementById('m-btn-raise').disabled = !isMyTurn;
+                 document.getElementById('m-btn-fold').disabled = !isMyTurn;
 
-                if (mySeat.cards && mySeat.cards.length > 0) {
-                    mySeat.cards.forEach((c, idx) => {
-                        let div = document.createElement('div');
-                        if (room.mode === 'blind' && !mySeat.hasLooked && room.status === "playing") {
-                            div.className = 'playing-card card-back';
-                            if (localUser.activeShirt === 'shirt_blue') div.style.backgroundColor = '#1e3a8a';
-                            if (localUser.activeShirt === 'shirt_purple') div.style.backgroundColor = '#581c87';
-                        } else {
-                            div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
-                            div.innerHTML = `<div>${c.rank}</div><div class="card-suit-center">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
-                        }
-                        div.style.marginLeft = idx > 0 ? "-28px" : "0px";
-                        div.style.transform = `rotate(${(idx - 1) * 6}deg) translateY(${(idx === 1) ? "-4px" : "0px"})`;
-                        pContainer.appendChild(div);
-                    });
-                }
-            }
+                 // СЕТЕВАЯ ПРИВЯЗКА КНОПОК: Связываем интерфейс сукна с вашей функцией ходов actionPlayerMove
+                 document.getElementById('m-btn-fold').onclick = function() { if (typeof actionPlayerMove === "function") actionPlayerMove('fold'); };
+                 document.getElementById('m-btn-raise').onclick = function() { if (typeof actionPlayerMove === "function") actionPlayerMove('raise'); };
+                 document.getElementById('m-btn-check').onclick = function() { if (typeof actionPlayerMove === "function") actionPlayerMove('check'); };
+
+                 // Создаем или находим плашку для вывода очков над картами
+                 let scoreBadge = document.getElementById('m-player-score-badge');
+                 if (!scoreBadge) {
+                     scoreBadge = document.createElement('div');
+                     scoreBadge.id = 'm-player-score-badge';
+                     scoreBadge.style = "position: absolute; bottom: 135px; left: 50%; transform: translateX(-50%); background: rgba(22, 25, 32, 0.9); color: #ecc94b; font-size: 11px; font-weight: bold; padding: 3px 10px; border-radius: 20px; border: 1px solid #ecc94b; box-shadow: 0 2px 5px rgba(0,0,0,0.3); z-index: 10; pointer-events: none;";
+                     pContainer.parentElement.appendChild(scoreBadge);
+                 }
+
+                 if (mySeat.cards && mySeat.cards.length > 0) {
+                     let isBlind = (room.mode === 'blind' && !mySeat.hasLooked && room.status === "playing");
+
+                     // Если карты открыты (не вслепую) — считаем очки и показываем плашку
+                     if (!isBlind && typeof calculateOnlineHandScore === "function") {
+                         let myScore = calculateOnlineHandScore(mySeat.cards);
+                         scoreBadge.innerText = `Очки: ${myScore}`;
+                         scoreBadge.style.display = 'block';
+                     } else {
+                         scoreBadge.style.display = 'none'; // Скрываем, если карты еще рубашкой вверх
+                     }
+
+                     mySeat.cards.forEach((c, idx) => {
+                         let div = document.createElement('div');
+                         if (isBlind) {
+                             div.className = 'playing-card card-back';
+                             if (localUser.activeShirt === 'shirt_blue') div.style.backgroundColor = '#1e3a8a';
+                             if (localUser.activeShirt === 'shirt_purple') div.style.backgroundColor = '#581c87';
+                         } else {
+                             div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                             div.innerHTML = `<div>${c.rank}</div><div class="card-suit-center">${c.suit}</div><div style="transform:rotate(180deg);">${c.rank}</div>`;
+                         }
+                         div.style.marginLeft = idx > 0 ? "-28px" : "0px";
+                         div.style.transform = `rotate(${(idx - 1) * 6}deg) translateY(${(idx === 1) ? "-4px" : "0px"})`;
+                         pContainer.appendChild(div);
+                     });
+                 } else {
+                     // Если карт вообще нет на руках — прячем плашку очков
+                     scoreBadge.style.display = 'none';
+                 }
+             }
+
 
                         // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ (ЧАСТЬ 2) ---
             const seatsConfig = [
@@ -2768,18 +2798,21 @@
             if (document.getElementById('val-trinki')) document.getElementById('val-trinki').innerText = "0";
         });
 
-        // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
+                // Облачный Радар столов: выводит список комнат в реальном времени с подсчетом мест
         function listenActiveRooms() {
             console.log("Облачный радар комнат активен.");
             
             database.ref('rooms').on('value', (snapshot) => {
-                const roomsData = snapshot.val();
                 const box = document.getElementById('online-rooms-list-box');
                 if (!box) return;
 
+                // СРАЗУ чистим контейнер при любом чихе базы, чтобы мертвые столы не застревали в DOM!
                 box.innerHTML = '';
 
-                if (!roomsData) {
+                const roomsData = snapshot.val();
+
+                // Если в базе вообще нет комнат или узел полностью пуст
+                if (!roomsData || Object.keys(roomsData).length === 0) {
                     box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:11px; padding:15px 0; background:#12141a; border-radius:8px; border:1px dashed #232731;">Активных столов в клубе нет.<br>Откройте первый кон выше!</div>`;
                     return;
                 }
@@ -2789,23 +2822,22 @@
                 Object.keys(roomsData).forEach(key => {
                     let room = roomsData[key];
                     
-                    // ЖЕЛЕЗНЫЙ ФИКС: Если комната была удалена и пришла как null, полностью игнорируем её
-                    if (!room) return;
+                    // Жесткий фильтр: если комната пустая, удаленная или пришла как null
+                    if (!room || !room.roomId) return;
                     
-                    // Выводим только открытые столы, где еще есть свободные места
+                    // Выводим только открытые столы, где статус ожидания
                     if (room.status === 'waiting') {
                         totalVisibleRooms++;
                         
-                        // Формируем красивую плашку заполненности (например: Мест: 1 из 3)
                         let slotsInfo = `Мест: ${room.playersCount} / ${room.maxPlayers}`;
                         let isFull = room.playersCount >= room.maxPlayers;
                         
                         box.innerHTML += `
                             <div style="background:#161920; padding:12px; border-radius:10px; border:1px solid #232731; display:flex; justify-content:space-between; align-items:center; text-align:left; box-shadow:0 3px 6px rgba(0,0,0,0.15);">
                                 <div>
-                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол игрока: <span style="color:#3b82f6;">${room.p1_name || 'Неизвестно'}</span></div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол игрока: <span style="color:#3b82f6;">${room.p1_name || 'Хост'}</span></div>
                                     <div style="font-size:11px; color:#4c566a; margin-top:3px; font-weight:bold;">
-                                        Фишки: <span style="color:#10b981;">${room.ante || 0}</span> | 
+                                        Фишки: <span style="color:#10b981;">${room.ante || 50}</span> | 
                                         ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}
                                     </div>
                                 </div>
@@ -2821,6 +2853,7 @@
                     }
                 });
 
+                // Если комнаты в базе есть, но у всех статус "playing" — пишем заглушку
                 if (totalVisibleRooms === 0) {
                     box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:11px; padding:15px 0; background:#12141a; border-radius:8px; border:1px dashed #232731;">Все столы заполнены или играют.<br>Создайте свою комнату!</div>`;
                 }
@@ -2828,19 +2861,40 @@
         }
 
 
-         // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
+             // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
         function connectToOnlineRoom(roomId) {
            let res = getSecureResources();
            if (res.corrupted) return; // MTS Античит
 
            database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                let room = snapshot.val();
+               const listBox = document.getElementById('online-rooms-list-box');
+
+               // Функция для красивого вывода ошибки прямо в интерфейс лобби вместо alert
+               function showLobbyError(message) {
+                   if (!listBox) return;
+                   let errDiv = document.createElement('div');
+                   errDiv.style = "background:#bf616a; color:#fff; font-size:12px; font-weight:bold; padding:10px; border-radius:8px; margin-bottom:10px; text-align:center; box-shadow:0 4px 10px rgba(0,0,0,0.2); animation: fadeIn 0.3s ease;";
+                   errDiv.innerText = message;
+               
+                   listBox.prepend(errDiv);
+               
+                   setTimeout(() => {
+                       errDiv.style.opacity = '0';
+                       errDiv.style.transition = 'opacity 0.5s ease';
+                       setTimeout(() => errDiv.remove(), 500);
+                   }, 3000);
+               }
+
+               // ПРОВЕРКА 1: Доступность стола
                if (!room || room.status !== 'waiting') {
-                   alert("Не удалось войти: стол уже играет или не существует.");
+                   showLobbyError("Не удалось войти: стол уже играет или не существует.");
                    return;
                }
+           
+               // ПРОВЕРКА 2: Баланс фишек
                if (res.chips < room.ante) {
-                   alert("Недостаточно фишек для оплаты взноса Анте!");
+                   showLobbyError("Недостаточно фишек для оплаты взноса Анте!");
                    return;
                }
 
@@ -2855,7 +2909,8 @@
                } else if (!room.p4_id && room.maxPlayers >= 4) {
                    targetSeatKey = "p4";
                } else {
-                   alert("Все места за столом уже заняты!");
+                   // ПРОВЕРКА 3: Наличие мест
+                   showLobbyError("Все места за столом уже заняты!");
                    return; 
                }
 
@@ -2894,7 +2949,7 @@
                        enterOnlineMatchLayout(snap.val());
                    });
                }).catch((err) => {
-                   console.error("Ошибка при обновлении ячейки стола в Firebase:", err);
+                   console.error("Ошибка при更新лении ячейки стола в Firebase:", err);
                });
            });
         }
