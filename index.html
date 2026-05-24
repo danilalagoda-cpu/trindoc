@@ -1979,9 +1979,7 @@
             });
         }
 
-
-
-        // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков
+                // Сетевой рендер карт и синхронизация бабблов ставок для 4 игроков (ЧАСТЬ 1)
         function renderOnlineMatchUiAndCards(room) {
             if (!room) return;
 
@@ -2012,13 +2010,11 @@
             const readyBtn = document.getElementById('m-btn-deal');
             if (readyBtn) {
                 if (room.status === "waiting") {
-                    // Стол еще не заполнен людьми или ботами до лимита maxPlayers
                     readyBtn.style.display = "block";
                     readyBtn.innerText = "Ожидание игроков...";
                     readyBtn.disabled = true;
                     readyBtn.style.opacity = "0.5";
                 } else if (room.status === "playing" && !room.p1_cards) {
-                    // Стол укомплектован! Ожидаем тапа готовности от каждого участника кона
                     readyBtn.style.display = "block";
                     readyBtn.style.opacity = "1";
     
@@ -2026,11 +2022,11 @@
                     if (myReadyStatus === true) {
                         readyBtn.innerText = "ВЫ ГОТОВЫ (Ожидание остальных...)";
                         readyBtn.disabled = true;
-                        readyBtn.style.backgroundColor = "#10b981"; // Зеленый цвет готовности
+                        readyBtn.style.backgroundColor = "#10b981"; 
                     } else {
                         readyBtn.innerText = "ПОДТВЕРДИТЬ ГОТОВНОСТЬ";
                         readyBtn.disabled = false;
-                        readyBtn.style.backgroundColor = "#3b82f6"; // Активный синий цвет
+                        readyBtn.style.backgroundColor = "#3b82f6"; 
                         readyBtn.onclick = function() { 
                             if (typeof togglePlayerReadyOnline === "function") {
                                 togglePlayerReadyOnline(mySeat.key); 
@@ -2038,7 +2034,6 @@
                         };
                     }
                 } else {
-                    // Карты розданы и уже находятся на руках — полностью убираем кнопку с сукна
                     readyBtn.style.display = "none";
                 }
             }
@@ -2072,7 +2067,7 @@
                 }
             }
 
-            // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ (ПРЯМАЯ ЛОГИКА) ---
+                        // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ (ЧАСТЬ 2) ---
             const seatsConfig = [
                 { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', step: 1 },
                 { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', step: 2 },
@@ -2083,15 +2078,12 @@
 
             console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, mySeatIndex: mySeatIndex, allSeats: allSeats });
 
-            // Если режим строго на двоих — убираем лишние циклы и бьем точно в цель
             if (maxP === 2) {
-                // 1. Скрываем ненужные кресла (Лево и Право) без лишних проверок
                 const leftBox = document.getElementById('seat-opp-left');
                 const rightBox = document.getElementById('seat-opp-right');
                 if (leftBox) leftBox.style.display = 'none';
                 if (rightBox) rightBox.style.display = 'none';
 
-                // 2. Включаем верхнее кресло
                 const topBox = document.getElementById('seat-opp-top');
                 const topCards = document.getElementById('m-cards-bot2');
                 
@@ -2100,7 +2092,6 @@
                     topBox.style.outline = "none";
                     topBox.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
-                    // Ищем оппонента (любое кресло, где ID или имя не пусты и это не мы)
                     const opp = allSeats.find(seat => (seat.id && seat.id !== currentUserId) || (seat.name && seat.name !== localUser.nick));
 
                     if (opp) {
@@ -2139,7 +2130,6 @@
                             chipsField.innerText = opp.chips || "0";
                         }
                     } else {
-                        // Если в базе вообще никого нет кроме Хоста
                         topCards.innerHTML = '';
                         let nameField = document.getElementById('m-label-opp-name-top');
                         if (nameField) nameField.innerText = "Ожидание...";
@@ -2148,7 +2138,6 @@
                     }
                 }
             } else {
-                // Режим на 3-4 игрока (оставляем вашу стандартную рабочую логику смещения)
                 seatsConfig.forEach((cfg) => {
                     const cardsCont = document.getElementById(cfg.containerId);
                     const boxEl = document.getElementById(cfg.boxId);
@@ -2209,6 +2198,18 @@
                     }
                 });
             }
+
+            const myBox = document.getElementById('m-profile-box');
+            if (myBox) {
+                if (room.status === "playing" && (room.turn === mySeat.id || room.turn === mySeat.key)) {
+                    myBox.style.borderColor = '#10b981';
+                    myBox.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.6)";
+                } else {
+                    myBox.style.borderColor = "#282c37";
+                    myBox.style.boxShadow = "none";
+                }
+            }
+        }
 
 
 
