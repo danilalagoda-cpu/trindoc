@@ -1322,39 +1322,36 @@
             }
         }
 
-         // Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
+         // 1. Создание стола с динамическими параметрами (Мгновенный автозаход на сукно)
         function triggerCreateOnlineRoom() {
             let res = getSecureResources();
             if (res.corrupted) return; // MTS Античит-блокировка
 
             let mode = document.getElementById('select-mode').value;
             let ante = parseInt(document.getElementById('input-ante').value) || 50;
-            let maxPlayers = parseInt(document.getElementById('select-max-players').value) || 4; // Ставим 4 по умолчанию под ваш контекст
+            let maxPlayers = parseInt(document.getElementById('select-max-players').value) || 4; 
 
             if (res.chips < ante) return; // Защита от нулевого баланса
 
             let safeId = String(currentUserId).replace(/[\.\$\#\[\]\/]/g, "").trim();
             currentRoomId = "room_" + safeId;
 
-            // Расширенная архитектура стола
             let roomData = {
                 roomId: currentRoomId,
                 ante: ante,
                 mode: mode,
                 maxPlayers: maxPlayers,
-                status: "waiting", // Статус: ждем людей
-                playersCount: 1,   // Создатель уже внутри
+                status: "waiting", 
+                playersCount: 1,   
                 pot: 0,
                 currentBet: ante,
                 turn: "",
 
-                // Данные создателя (Игрок 1)
                 p1_id: currentUserId,
                 p1_name: localUser.nick,
                 p1_chips: res.chips,
                 p1_status: "active",
 
-                // Ячейки для остальных участников (Игроки 2, 3 и 4)
                 p2_id: "", p2_name: "", p2_chips: 0, p2_status: "empty",
                 p3_id: "", p3_name: "", p3_chips: 0, p3_status: "empty",
                 p4_id: "", p4_name: "", p4_chips: 0, p4_status: "empty"
@@ -1362,21 +1359,18 @@
 
             console.log("Регистрация стола на сервере:", currentRoomId);
 
-            // Мгновенно переключаем экраны для отзывчивости интерфейса
             enterOnlineMatchLayout(roomData);
 
-            // ЖЕЛЕЗНЫЙ ФИКС: Сначала пишем данные в Firebase, и ТОЛЬКО после успеха включаем слежку!
-            database.ref('rooms/' + currentRoomId).set(roomData, (error) => {
-                if (error) {
+            // ФИКС REST API: Используем Промисы вместо старого колбэка, чтобы запустить радар Хоста
+            database.ref('rooms/' + currentRoomId).set(roomData)
+                .then(() => {
+                    console.log("Стол успешно зафиксирован на сервере. Включаем ИИ и слежку...");
+                    listenRoomStatusChanges(currentRoomId); 
+                })
+                .catch((error) => {
                     console.error("Критическая ошибка синхронизации стола с Firebase:", error);
                     if (typeof exitFromOnlineRoom === "function") exitFromOnlineRoom();
-                } else {
-                    console.log("Стол успешно зафиксирован на сервере. Включаем ИИ и слежку...");
-            
-                    // Включаем сетевую слежку ТОЛЬКО когда в базе гарантированно есть объект комнаты!
-                    listenRoomStatusChanges(currentRoomId); 
-                }
-            });
+                });
         }
 
                 // --- ЧАСТЬ 5: ДРУЗЬЯ, УДАЛЕНИЕ И ПОДАРКИ С АНТИЧИТОМ ---
