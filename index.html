@@ -3009,7 +3009,7 @@
         }
 
 
-              // Сетевая слежка за столом (Фоновое ухо до конца матча без спама логов)
+         // Сетевая слежка за столом (Авто-старт при готовности 2/2 без выключения радара)
        function listenRoomStatusChanges(roomId) {
            if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
    
@@ -3023,7 +3023,6 @@
 
            function processRoomData(room) {
                if (!room) {
-                   if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
                    if (window.hostPollingIntervalId) { clearInterval(window.hostPollingIntervalId); window.hostPollingIntervalId = null; }
                    return;
                }
@@ -3032,6 +3031,26 @@
                    renderOnlineMatchUiAndCards(room);
                } catch(e) {
                    console.error("Ошибка в отрисовке сукна:", e);
+               }
+
+               // АВТО-СТАРТ РАЗДАЧИ: Если Хост видит, что готовы ВСЕ зашедшие игроки
+               if (room.p1_id === currentUserId && room.status === "playing" && !room.p1_cards) {
+                   // Считаем активных людей в базе
+                   let activeCount = 0;
+                   let readyCount = 0;
+                   
+                   if (room.p1_id) { activeCount++; if (room.p1_ready === true || room.p1_status === 'ready') readyCount++; }
+                   if (room.p2_id) { activeCount++; if (room.p2_ready === true || room.p2_status === 'ready') readyCount++; }
+                   if (room.p3_id) { activeCount++; if (room.p3_ready === true || room.p3_status === 'ready') readyCount++; }
+                   if (room.p4_id) { activeCount++; if (room.p4_ready === true || room.p4_status === 'ready') readyCount++; }
+
+                   // Если за столом минимум 2 игрока и ВСЕ нажали Готов — Хост запускает раздачу!
+                   if (activeCount >= 2 && activeCount === readyCount) {
+                       console.log(`РАДАР: Все готовы (${readyCount}/${activeCount}). Хост раздает карты...`);
+                       if (typeof startHandLogic === "function") {
+                           startHandLogic();
+                       }
+                   }
                }
            }
 
@@ -3042,21 +3061,17 @@
            window.hostPollingIntervalId = setInterval(() => {
                database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                    let freshRoom = snapshot.val();
-           
-                   // Радар живет и качает данные, пока комната физически существует в базе
                    if (!freshRoom) {
                        clearInterval(window.hostPollingIntervalId);
                        window.hostPollingIntervalId = null;
                        return;
                    }
-
                    processRoomData(freshRoom);
                }).catch((err) => {
                    console.error("Ошибка принудительного опроса базы Хостом:", err);
                });
            }, 1500);
        }
-
 
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
