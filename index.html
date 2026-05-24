@@ -2070,7 +2070,7 @@
 
             let maxP = parseInt(room.maxPlayers) || 4;
 
-            console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, mySeatIndex: mySeatIndex, allSeats: allSeats });
+            //console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, mySeatIndex: mySeatIndex, allSeats: allSeats });
 
             if (maxP === 2) {
                 const leftBox = document.getElementById('seat-opp-left');
@@ -2779,7 +2779,7 @@
 
                 box.innerHTML = '';
 
-                if (!roomsData || Object.keys(roomsData).length === 0) {
+                if (!roomsData) {
                     box.innerHTML = `<div style="text-align:center; color:#4c566a; font-size:11px; padding:15px 0; background:#12141a; border-radius:8px; border:1px dashed #232731;">Активных столов в клубе нет.<br>Откройте первый кон выше!</div>`;
                     return;
                 }
@@ -2788,6 +2788,9 @@
 
                 Object.keys(roomsData).forEach(key => {
                     let room = roomsData[key];
+                    
+                    // ЖЕЛЕЗНЫЙ ФИКС: Если комната была удалена и пришла как null, полностью игнорируем её
+                    if (!room) return;
                     
                     // Выводим только открытые столы, где еще есть свободные места
                     if (room.status === 'waiting') {
@@ -2800,9 +2803,9 @@
                         box.innerHTML += `
                             <div style="background:#161920; padding:12px; border-radius:10px; border:1px solid #232731; display:flex; justify-content:space-between; align-items:center; text-align:left; box-shadow:0 3px 6px rgba(0,0,0,0.15);">
                                 <div>
-                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол игрока: <span style="color:#3b82f6;">${room.p1_name}</span></div>
+                                    <div style="font-weight:bold; font-size:13px; color:#fff;">Стол игрока: <span style="color:#3b82f6;">${room.p1_name || 'Неизвестно'}</span></div>
                                     <div style="font-size:11px; color:#4c566a; margin-top:3px; font-weight:bold;">
-                                        Фишки: <span style="color:#10b981;">${room.ante}</span> | 
+                                        Фишки: <span style="color:#10b981;">${room.ante || 0}</span> | 
                                         ${room.mode === 'blind' ? 'Вслепую' : 'Классика'}
                                     </div>
                                 </div>
@@ -2823,6 +2826,7 @@
                 }
             });
         }
+
 
          // Посадка за чужой выбранный стол из списка (Поддержка до 4 игроков)
         function connectToOnlineRoom(roomId) {
@@ -3005,7 +3009,7 @@
         }
 
 
-       // Сетевая слежка за столом (Железный фикс «слепоты» Хоста через принудительный поллинг)
+              // Сетевая слежка за столом (Фоновое ухо до конца матча без спама логов)
        function listenRoomStatusChanges(roomId) {
            if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
    
@@ -3014,7 +3018,7 @@
                window.hostPollingIntervalId = null; 
            }
 
-           console.log("РАДАР: Запуск агрессивной слежки за комнатой:", roomId);
+           console.log("РАДАР: Запуск непрерывной слежки за комнатой:", roomId);
            database.ref('rooms/' + roomId).off();
 
            function processRoomData(room) {
@@ -3023,22 +3027,11 @@
                    if (window.hostPollingIntervalId) { clearInterval(window.hostPollingIntervalId); window.hostPollingIntervalId = null; }
                    return;
                }
-
-               console.log("РАДАР: Данные стола успешно обработаны. Статус:", room.status);
        
                try {
                    renderOnlineMatchUiAndCards(room);
                } catch(e) {
                    console.error("Ошибка в отрисовке сукна:", e);
-               }
-
-               // ФИКС АВТОСТАРТА: Выключаем радар только если карты РЕАЛЬНО сгенерированы и лежат в базе
-               if (room.p1_id === currentUserId && room.status === "playing" && room.p1_cards) {
-                   if (window.hostPollingIntervalId) { 
-                       clearInterval(window.hostPollingIntervalId); 
-                       window.hostPollingIntervalId = null; 
-                   }
-                   console.log("РАДАР: Карты на столе, радар успешно завершил работу.");
                }
            }
 
@@ -3050,11 +3043,11 @@
                database.ref('rooms/' + roomId).once('value').then((snapshot) => {
                    let freshRoom = snapshot.val();
            
-                   // Таймер не тушится вслепую, пока нет карт на руках
-                   if (!freshRoom || (freshRoom.status === "playing" && freshRoom.p1_cards)) {
+                   // Радар живет и качает данные, пока комната физически существует в базе
+                   if (!freshRoom) {
                        clearInterval(window.hostPollingIntervalId);
                        window.hostPollingIntervalId = null;
-                       if (!freshRoom) return;
+                       return;
                    }
 
                    processRoomData(freshRoom);
@@ -3063,6 +3056,7 @@
                });
            }, 1500);
        }
+
 
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
