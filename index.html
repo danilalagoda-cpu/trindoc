@@ -1025,7 +1025,6 @@
             database.ref('users/' + currentUserId).update(updatedData);
         }
 
-        // 3. Обновление кошельков и применение классов оформления к нику
         function refreshUiWalletsAndStyles() {
             let res = getSecureResources();
             if (res.corrupted) return;
@@ -1035,16 +1034,19 @@
 
             let label = document.getElementById('label-username');
             if (label) {
+                // Сбрасываем старые стили, возвращая базовый класс HUD
                 label.className = "hud-username";
-        
-                // Берем стиль напрямую из сохраненной переменной профиля
+            
+                // Берем имя активного класса напрямую из профиля
                 let activeStyle = localUser.activeNickStyle || "default";
-        
-                if (activeStyle !== "default" && localUser.ownedStyles.includes(activeStyle)) {
+            
+                if (activeStyle !== "default") {
+                    // Напрямую добавляем класс (style-rainbow, style-vip-snake и т.д.)
                     label.classList.add(activeStyle);
                 }
             }
         }
+
 
         // Менеджер навигации по 5 вкладкам смартфона
         function switchMainTab(tabId) {
@@ -1378,6 +1380,7 @@
 
                 p1_id: currentUserId,
                 p1_name: localUser.nick,
+                p1_nickStyle: localUser.activeNickStyle || "default", // Отправляем стиль Хоста в базу!
                 p1_chips: res.chips,
                 p1_status: "active",
 
@@ -2175,8 +2178,27 @@
 
                         let nameField = document.getElementById('m-label-opp-name-top');
                         if (nameField) {
-                            nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
+                            // Очищаем старые классы оформления на верхнем кресле
+                            nameField.className = ""; 
+                            
+                            // Достаем стиль оппонента из параметров его кресла в базе (p2_nickStyle, p3_nickStyle и т.д.)
+                            let oppStyle = opp.nickStyle || "default";
+                            if (oppStyle !== "default") {
+                                // Напрямую вешаем класс стиля оппонента (например, style-vip-snake) на верхний ник!
+                                nameField.classList.add(oppStyle);
+                            }
+
+                            nameField.innerText = opp.name;
+                            
+                            // Если хотите сохранить приписку взноса/паса, можно выводить её в отдельное поле или дописывать, 
+                            // но innerText сбросит HTML, поэтому пишем аккуратно:
+                            if (opp.status === 'folded') {
+                                nameField.innerText = `${opp.name} [ПАС]`;
+                            } else {
+                                nameField.innerText = `${opp.name} [Взнос: ${opp.bet || 0}]`;
+                            }
                         }
+
                 
                         let chipsField = document.getElementById('m-chips-bot2');
                         if (chipsField) {
@@ -2266,12 +2288,13 @@
                 // Находим текстовое поле вашего имени в игровом интерфейсе
                 const myNameLabel = document.getElementById('m-label-player-name') || document.getElementById('label-username-match');
                 if (myNameLabel && mySeat) {
-                    // Очищаем старые классы оформления
+                    // Сбрасываем старые классы оформления, чтобы они не накладывались
                     myNameLabel.className = ""; 
                     
-                    // Если у нас в профиле активирован уникальный стиль — вешаем этот класс на ник на сукне!
+                    // Полная динамика: берем любой активный стиль (радуга, змея, вип)
                     let activeStyle = localUser.activeNickStyle || "default";
-                    if (activeStyle !== "default" && localUser.ownedStyles.includes(activeStyle)) {
+                    if (activeStyle !== "default") {
+                        // Напрямую вешаем этот CSS-класс на ник под картами
                         myNameLabel.classList.add(activeStyle);
                     }
                     
@@ -2972,6 +2995,7 @@
                updates[targetSeatKey + '_name'] = localUser.nick || "Игрок";
                updates[targetSeatKey + '_chips'] = res.chips;
                updates[targetSeatKey + '_status'] = "active"; // ЖЕЛЕЗНЫЙ ФИКС: активируем кресло в базе!
+               updates[targetSeatKey + '_nickStyle'] = localUser.activeNickStyle || "default"; // Отправляем стиль Гостя в базу!
 
                // Пересчитываем количество реальных игроков на сервере
                let currentPlayersCount = (room.playersCount || 1) + 1;
