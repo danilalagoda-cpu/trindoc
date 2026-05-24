@@ -2072,7 +2072,7 @@
                 }
             }
 
-            // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ ---
+// --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ ---
             const seatsConfig = [
                 { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', step: 1 },
                 { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', step: 2 },
@@ -2115,7 +2115,8 @@
 
              const opp = allSeats[targetSeatIndex];
 
-             if (opp && opp.id) {
+             // Защита: Отрисовываем оппонента, если у него есть хотя бы имя (p2_name в базе заполнено)
+             if (opp && (opp.id || opp.name)) {
                  cardsCont.innerHTML = '';
 
                  if (opp.status === 'folded') {
@@ -2123,7 +2124,8 @@
                  } else if (opp.cards && opp.cards.length > 0) {
                      opp.cards.forEach((c, idx) => {
                          let div = document.createElement('div');
-                         if (room.status === "showdown") {
+                         // Безопасная проверка статуса "showdown"
+                         if (room.status && room.status === "showdown") {
                              div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
                              div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
                              div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
@@ -2136,7 +2138,8 @@
                      });
                  }
 
-                 if ((room.turn === opp.id || room.turn === opp.key) && room.status === "playing") {
+                 // Безопасная проверка хода с защитой от отсутствия room.status
+                 if (room.status && room.status === "playing" && (room.turn === opp.id || room.turn === opp.key)) {
                      boxEl.style.outline = "2px dashed #3b82f6";
                      boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
                  }
@@ -2162,7 +2165,8 @@
 
             const myBox = document.getElementById('m-profile-box');
             if (myBox) {
-                if ((room.turn === mySeat.id || room.turn === mySeat.key) && room.status === "playing") {
+                // Безопасная проверка для своего бокса
+                if (room.status && room.status === "playing" && (room.turn === mySeat.id || room.turn === mySeat.key)) {
                     myBox.style.borderColor = '#10b981';
                     myBox.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.6)";
                 } else {
