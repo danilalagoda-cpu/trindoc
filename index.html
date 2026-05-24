@@ -2081,75 +2081,84 @@
 
             let maxP = parseInt(room.maxPlayers) || 4;
 
-            seatsConfig.forEach((cfg) => {
-                const cardsCont = document.getElementById(cfg.containerId);
-                const boxEl = document.getElementById(cfg.boxId);
-                if (!cardsCont || !boxEl) return;
+         console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, allSeats: allSeats });
 
-                let targetSeatIndex;
-                if (maxP === 2) {
-                    if (cfg.boxId !== 'seat-opp-top') {
-                        boxEl.style.display = 'none';
-                        return;
-                    }
-                    targetSeatIndex = mySeatIndex === 0 ? 1 : 0;
-                } else {
-                    if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
-                        boxEl.style.display = 'none';
-                        return;
-                    }
-                    targetSeatIndex = (mySeatIndex + cfg.step) % 4;
-                }
+         seatsConfig.forEach((cfg) => {
+             const cardsCont = document.getElementById(cfg.containerId);
+             const boxEl = document.getElementById(cfg.boxId);
+             if (!cardsCont || !boxEl) return;
 
-                boxEl.style.display = 'block';
-                boxEl.style.outline = "none";
-                boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
+             let targetSeatIndex;
+             if (maxP === 2) {
+                 if (cfg.boxId !== 'seat-opp-top') {
+                     boxEl.style.display = 'none';
+                     return; 
+                 }
+                 // ДИНАМИЧЕСКИЙ ПОИСК ОППОНЕНТА: Ищем любого, чей ID заполнен и не равен нашему
+                 targetSeatIndex = allSeats.findIndex(seat => seat.id && seat.id !== currentUserId);
+                 
+                 // Если за столом пока никого нет, по умолчанию смотрим на ячейку p2 (индекс 1)
+                 if (targetSeatIndex === -1) {
+                     targetSeatIndex = mySeatIndex === 0 ? 1 : 0;
+                 }
+             } else {
+                 if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
+                     boxEl.style.display = 'none';
+                     return;
+                 }
+                 targetSeatIndex = (mySeatIndex + cfg.step) % 4;
+             }
 
-                const opp = allSeats[targetSeatIndex];
+             boxEl.style.display = 'block';
+             boxEl.style.outline = "none";
+             boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
-                if (opp && opp.id) {
-                    cardsCont.innerHTML = '';
+             const opp = allSeats[targetSeatIndex];
 
-                    if (opp.status === 'folded') {
-                        cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
-                    } else if (opp.cards && opp.cards.length > 0) {
-                        opp.cards.forEach((c, idx) => {
-                            let div = document.createElement('div');
-                            if (room.status === "showdown") {
-                                div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
-                                div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
-                                div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
-                            } else {
-                                div.className = 'playing-card card-back';
-                                div.style.width = '32px'; div.style.height = '46px';
-                            }
-                            div.style.marginLeft = idx > 0 ? "-18px" : "0px";
-                            cardsCont.appendChild(div);
-                        });
-                    }
+             if (opp && opp.id) {
+                 cardsCont.innerHTML = '';
 
-                    if ((room.turn === opp.id || room.turn === opp.key) && room.status === "playing") {
-                        boxEl.style.outline = "2px dashed #3b82f6";
-                        boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
-                    }
+                 if (opp.status === 'folded') {
+                     cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
+                 } else if (opp.cards && opp.cards.length > 0) {
+                     opp.cards.forEach((c, idx) => {
+                         let div = document.createElement('div');
+                         if (room.status === "showdown") {
+                             div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                             div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
+                             div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
+                         } else {
+                             div.className = 'playing-card card-back';
+                             div.style.width = '32px'; div.style.height = '46px';
+                         }
+                         div.style.marginLeft = idx > 0 ? "-18px" : "0px";
+                         cardsCont.appendChild(div);
+                     });
+                 }
 
-                    let nameField = document.getElementById(cfg.bubbleId);
-                    if (nameField) {
-                        nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
-                    }
-            
-                    let chipsField = document.getElementById(cfg.chipsId);
-                    if (chipsField) {
-                        chipsField.innerText = opp.chips || "0";
-                    }
-                } else {
-                    cardsCont.innerHTML = '';
-                    let nameField = document.getElementById(cfg.bubbleId);
-                    if (nameField) nameField.innerText = "Ожидание...";
-                    let chipsField = document.getElementById(cfg.chipsId);
-                    if (chipsField) chipsField.innerText = "0";
-                }
-            });
+                 if ((room.turn === opp.id || room.turn === opp.key) && room.status === "playing") {
+                     boxEl.style.outline = "2px dashed #3b82f6";
+                     boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
+                 }
+
+                 let nameField = document.getElementById(cfg.bubbleId);
+                 if (nameField) {
+                     nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
+                 }
+         
+                 let chipsField = document.getElementById(cfg.chipsId);
+                 if (chipsField) {
+                     chipsField.innerText = opp.chips || "0";
+                 }
+             } else {
+                 cardsCont.innerHTML = '';
+                 let nameField = document.getElementById(cfg.bubbleId);
+                 if (nameField) nameField.innerText = "Ожидание...";
+                 let chipsField = document.getElementById(cfg.chipsId);
+                 if (chipsField) chipsField.innerText = "0";
+             }
+         });
+
 
             const myBox = document.getElementById('m-profile-box');
             if (myBox) {
