@@ -2072,7 +2072,7 @@
                 }
             }
 
-// --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ ---
+            // --- РЕНДЕР ОППОНЕНТОВ С УЧЕТОМ РЕЖИМА ИГРЫ (ПРЯМАЯ ЛОГИКА) ---
             const seatsConfig = [
                 { containerId: 'm-cards-bot1', boxId: 'seat-opp-left', bubbleId: 'm-label-opp-name-left', chipsId: 'm-chips-bot1', step: 1 },
                 { containerId: 'm-cards-bot2', boxId: 'seat-opp-top', bubbleId: 'm-label-opp-name-top', chipsId: 'm-chips-bot2', step: 2 },
@@ -2081,100 +2081,135 @@
 
             let maxP = parseInt(room.maxPlayers) || 4;
 
-         console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, allSeats: allSeats });
+            console.log("АНАЛИЗ БАЗЫ ХОСТОМ:", { currentUserId: currentUserId, mySeatIndex: mySeatIndex, allSeats: allSeats });
 
-         seatsConfig.forEach((cfg) => {
-             const cardsCont = document.getElementById(cfg.containerId);
-             const boxEl = document.getElementById(cfg.boxId);
-             if (!cardsCont || !boxEl) return;
+            // Если режим строго на двоих — убираем лишние циклы и бьем точно в цель
+            if (maxP === 2) {
+                // 1. Скрываем ненужные кресла (Лево и Право) без лишних проверок
+                const leftBox = document.getElementById('seat-opp-left');
+                const rightBox = document.getElementById('seat-opp-right');
+                if (leftBox) leftBox.style.display = 'none';
+                if (rightBox) rightBox.style.display = 'none';
 
-             let targetSeatIndex;
-             if (maxP === 2) {
-                 if (cfg.boxId !== 'seat-opp-top') {
-                     boxEl.style.display = 'none';
-                     return; 
-                 }
-                 // ДИНАМИЧЕСКИЙ ПОИСК ОППОНЕНТА: Ищем любого, чей ID заполнен и не равен нашему
-                 targetSeatIndex = allSeats.findIndex(seat => seat.id && seat.id !== currentUserId);
-                 
-                 // Если за столом пока никого нет, по умолчанию смотрим на ячейку p2 (индекс 1)
-                 if (targetSeatIndex === -1) {
-                     targetSeatIndex = mySeatIndex === 0 ? 1 : 0;
-                 }
-             } else {
-                 if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
-                     boxEl.style.display = 'none';
-                     return;
-                 }
-                 targetSeatIndex = (mySeatIndex + cfg.step) % 4;
-             }
+                // 2. Включаем верхнее кресло
+                const topBox = document.getElementById('seat-opp-top');
+                const topCards = document.getElementById('m-cards-bot2');
+                
+                if (topBox && topCards) {
+                    topBox.style.display = 'block';
+                    topBox.style.outline = "none";
+                    topBox.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
 
-             boxEl.style.display = 'block';
-             boxEl.style.outline = "none";
-             boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
+                    // Ищем оппонента (любое кресло, где ID или имя не пусты и это не мы)
+                    const opp = allSeats.find(seat => (seat.id && seat.id !== currentUserId) || (seat.name && seat.name !== localUser.nick));
 
-             const opp = allSeats[targetSeatIndex];
+                    if (opp) {
+                        topCards.innerHTML = '';
 
-             // Защита: Отрисовываем оппонента, если у него есть хотя бы имя (p2_name в базе заполнено)
-             if (opp && (opp.id || opp.name)) {
-                 cardsCont.innerHTML = '';
+                        if (opp.status === 'folded') {
+                            topCards.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
+                        } else if (opp.cards && opp.cards.length > 0) {
+                            opp.cards.forEach((c, idx) => {
+                                let div = document.createElement('div');
+                                if (room.status === "showdown") {
+                                    div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                                    div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
+                                    div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
+                                } else {
+                                    div.className = 'playing-card card-back';
+                                    div.style.width = '32px'; div.style.height = '46px';
+                                }
+                                div.style.marginLeft = idx > 0 ? "-18px" : "0px";
+                                topCards.appendChild(div);
+                            });
+                        }
 
-                 if (opp.status === 'folded') {
-                     cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
-                 } else if (opp.cards && opp.cards.length > 0) {
-                     opp.cards.forEach((c, idx) => {
-                         let div = document.createElement('div');
-                         // Безопасная проверка статуса "showdown"
-                         if (room.status && room.status === "showdown") {
-                             div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
-                             div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
-                             div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
-                         } else {
-                             div.className = 'playing-card card-back';
-                             div.style.width = '32px'; div.style.height = '46px';
-                         }
-                         div.style.marginLeft = idx > 0 ? "-18px" : "0px";
-                         cardsCont.appendChild(div);
-                     });
-                 }
+                        if (room.status === "playing" && (room.turn === opp.id || room.turn === opp.key)) {
+                            topBox.style.outline = "2px dashed #3b82f6";
+                            topBox.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
+                        }
 
-                 // Безопасная проверка хода с защитой от отсутствия room.status
-                 if (room.status && room.status === "playing" && (room.turn === opp.id || room.turn === opp.key)) {
-                     boxEl.style.outline = "2px dashed #3b82f6";
-                     boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
-                 }
-
-                 let nameField = document.getElementById(cfg.bubbleId);
-                 if (nameField) {
-                     nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
-                 }
-         
-                 let chipsField = document.getElementById(cfg.chipsId);
-                 if (chipsField) {
-                     chipsField.innerText = opp.chips || "0";
-                 }
-             } else {
-                 cardsCont.innerHTML = '';
-                 let nameField = document.getElementById(cfg.bubbleId);
-                 if (nameField) nameField.innerText = "Ожидание...";
-                 let chipsField = document.getElementById(cfg.chipsId);
-                 if (chipsField) chipsField.innerText = "0";
-             }
-         });
-
-
-            const myBox = document.getElementById('m-profile-box');
-            if (myBox) {
-                // Безопасная проверка для своего бокса
-                if (room.status && room.status === "playing" && (room.turn === mySeat.id || room.turn === mySeat.key)) {
-                    myBox.style.borderColor = '#10b981';
-                    myBox.style.boxShadow = "0 0 15px rgba(16, 185, 129, 0.6)";
-                } else {
-                    myBox.style.borderColor = "#282c37";
-                    myBox.style.boxShadow = "none";
+                        let nameField = document.getElementById('m-label-opp-name-top');
+                        if (nameField) {
+                            nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
+                        }
+                
+                        let chipsField = document.getElementById('m-chips-bot2');
+                        if (chipsField) {
+                            chipsField.innerText = opp.chips || "0";
+                        }
+                    } else {
+                        // Если в базе вообще никого нет кроме Хоста
+                        topCards.innerHTML = '';
+                        let nameField = document.getElementById('m-label-opp-name-top');
+                        if (nameField) nameField.innerText = "Ожидание...";
+                        let chipsField = document.getElementById('m-chips-bot2');
+                        if (chipsField) chipsField.innerText = "0";
+                    }
                 }
+            } else {
+                // Режим на 3-4 игрока (оставляем вашу стандартную рабочую логику смещения)
+                seatsConfig.forEach((cfg) => {
+                    const cardsCont = document.getElementById(cfg.containerId);
+                    const boxEl = document.getElementById(cfg.boxId);
+                    if (!cardsCont || !boxEl) return;
+
+                    if (maxP === 3 && cfg.boxId === 'seat-opp-right') {
+                        boxEl.style.display = 'none';
+                        return;
+                    }
+
+                    let targetSeatIndex = (mySeatIndex + cfg.step) % 4;
+                    boxEl.style.display = 'block';
+                    boxEl.style.outline = "none";
+                    boxEl.style.boxShadow = "0 4px 8px rgba(0,0,0,0.4)";
+
+                    const opp = allSeats[targetSeatIndex];
+
+                    if (opp && opp.id) {
+                        cardsCont.innerHTML = '';
+                        if (opp.status === 'folded') {
+                            cardsCont.innerHTML = "<span style='color:#bf616a; font-size:10px; font-weight:900;'>🏳️ ПАС</span>";
+                        } else if (opp.cards && opp.cards.length > 0) {
+                            opp.cards.forEach((c, idx) => {
+                                let div = document.createElement('div');
+                                if (room.status === "showdown") {
+                                    div.className = `playing-card ${c.isRed ? 'suit-red' : 'suit-black'}`;
+                                    div.style.width = '32px'; div.style.height = '46px'; div.style.fontSize = '10px'; div.style.padding = '3px';
+                                    div.innerHTML = `<div>${c.rank}</div><div style="font-size:12px; align-self:center;">${c.suit}</div>`;
+                                } else {
+                                    div.className = 'playing-card card-back';
+                                    div.style.width = '32px'; div.style.height = '46px';
+                                }
+                                div.style.marginLeft = idx > 0 ? "-18px" : "0px";
+                                cardsCont.appendChild(div);
+                            });
+                        }
+
+                        if (room.status === "playing" && (room.turn === opp.id || room.turn === opp.key)) {
+                            boxEl.style.outline = "2px dashed #3b82f6";
+                            boxEl.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.6)";
+                        }
+
+                        let nameField = document.getElementById(cfg.bubbleId);
+                        if (nameField) {
+                            nameField.innerText = opp.status === 'folded' ? `${opp.name} [ПАС]` : `${opp.name} [Взнос: ${opp.bet || 0}]`;
+                        }
+                
+                        let chipsField = document.getElementById(cfg.chipsId);
+                        if (chipsField) {
+                            chipsField.innerText = opp.chips || "0";
+                        }
+                    } else {
+                        cardsCont.innerHTML = '';
+                        let nameField = document.getElementById(cfg.bubbleId);
+                        if (nameField) nameField.innerText = "Ожидание...";
+                        let chipsField = document.getElementById(cfg.chipsId);
+                        if (chipsField) chipsField.innerText = "0";
+                    }
+                });
             }
-        }
+
 
 
                 // Функция подтверждения готовности на сукне
