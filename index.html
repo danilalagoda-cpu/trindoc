@@ -3011,75 +3011,64 @@
         }
 
 
-          // Сетевая слежка за столом (Железный фикс «слепоты» Хоста через принудительный поллинг)
-        function listenRoomStatusChanges(roomId) {
-            if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
-    
-            // ЖЕЛЕЗНЫЙ СБРОС: Убиваем старый таймер опроса, если он уже крутился
-            if (window.hostPollingIntervalId) { 
-                clearInterval(window.hostPollingIntervalId); 
-                window.hostPollingIntervalId = null; 
-            }
+       // Сетевая слежка за столом (Железный фикс «слепоты» Хоста через принудительный поллинг)
+       function listenRoomStatusChanges(roomId) {
+           if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+   
+           if (window.hostPollingIntervalId) { 
+               clearInterval(window.hostPollingIntervalId); 
+               window.hostPollingIntervalId = null; 
+           }
 
-            console.log("РАДАР: Запуск агрессивной слежки за комнатой:", roomId);
+           console.log("РАДАР: Запуск агрессивной слежки за комнатой:", roomId);
+           database.ref('rooms/' + roomId).off();
 
-            // Отключаем старые сессии Firebase на этом пути
-            database.ref('rooms/' + roomId).off();
+           function processRoomData(room) {
+               if (!room) {
+                   if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
+                   if (window.hostPollingIntervalId) { clearInterval(window.hostPollingIntervalId); window.hostPollingIntervalId = null; }
+                   return;
+               }
 
-            // Единое ядро обработки данных комнаты, которое вызывается и сетью, и таймером
-            function processRoomData(room) {
-                if (!room) {
-                    if (botTimerId) { clearTimeout(botTimerId); botTimerId = null; }
-                    if (window.hostPollingIntervalId) { clearInterval(window.hostPollingIntervalId); window.hostPollingIntervalId = null; }
-                    return;
-                }
+               console.log("РАДАР: Данные стола успешно обработаны. Статус:", room.status);
+       
+               try {
+                   renderOnlineMatchUiAndCards(room);
+               } catch(e) {
+                   console.error("Ошибка в отрисовке сукна:", e);
+               }
 
-                console.log("РАДАР: Данные стола успешно обработаны. Статус:", room.status);
-        
-                // Форсируем перерисовку экрана!
-                try {
-                    renderOnlineMatchUiAndCards(room);
-                } catch(e) {
-                    console.error("Ошибка в отрисовке сукна:", e);
-                }
+               // ФИКС АВТОСТАРТА: Выключаем радар только если карты РЕАЛЬНО сгенерированы и лежат в базе
+               if (room.p1_id === currentUserId && room.status === "playing" && room.p1_cards) {
+                   if (window.hostPollingIntervalId) { 
+                       clearInterval(window.hostPollingIntervalId); 
+                       window.hostPollingIntervalId = null; 
+                   }
+                   console.log("РАДАР: Карты на столе, радар успешно завершил работу.");
+               }
+           }
 
-                // Авто-старт раздачи для Хоста
-                if (room.p1_id === currentUserId && room.status === "playing" && !room.p1_cards) {
-                    // Если игра началась, выключаем фоновый таймер опроса, он больше не нужен
-                    if (window.hostPollingIntervalId) { 
-                        clearInterval(window.hostPollingIntervalId); 
-                        window.hostPollingIntervalId = null; 
-                    }
-                    console.log("РАДАР: Стол заполнен! Хост начинает раздачу...");
-                    startHandLogic();
-                }
-            }
+           database.ref('rooms/' + roomId).on('value', (snapshot) => {
+               processRoomData(snapshot.val());
+           });
 
-            // 1. Стандартный слушатель (для устройств, где сеть работает нормально)
-            database.ref('rooms/' + roomId).on('value', (snapshot) => {
-                processRoomData(snapshot.val());
-            });
+           window.hostPollingIntervalId = setInterval(() => {
+               database.ref('rooms/' + roomId).once('value').then((snapshot) => {
+                   let freshRoom = snapshot.val();
+           
+                   // Таймер не тушится вслепую, пока нет карт на руках
+                   if (!freshRoom || (freshRoom.status === "playing" && freshRoom.p1_cards)) {
+                       clearInterval(window.hostPollingIntervalId);
+                       window.hostPollingIntervalId = null;
+                       if (!freshRoom) return;
+                   }
 
-            // 2. ЖЕЛЕЗНЫЙ БУДИЛЬНИК ДЛЯ ХОСТА: Каждые 1.5 секунды принудительно делаем запрос в базу.
-            // Если гость зашел и прописал свой ID, этот метод ОГРАНТИРОВАННО скачает свежие данные!
-            window.hostPollingIntervalId = setInterval(() => {
-                database.ref('rooms/' + roomId).once('value').then((snapshot) => {
-                    let freshRoom = snapshot.val();
-            
-                    // Если комнату удалили или игра уже активно идет — тушим таймер опроса
-                    if (!freshRoom || (freshRoom.status === "playing" && freshRoom.p1_cards)) {
-                        clearInterval(window.hostPollingIntervalId);
-                        window.hostPollingIntervalId = null;
-                        return;
-                    }
-
-                    // Передаем свежие серверные данные в отрисовку
-                    processRoomData(freshRoom);
-                }).catch((err) => {
-                    console.error("Ошибка принудительного опроса базы Хостом:", err);
-                });
-            }, 1500); // 1.5 секунды между проверками
-        }
+                   processRoomData(freshRoom);
+               }).catch((err) => {
+                   console.error("Ошибка принудительного опроса базы Хостом:", err);
+               });
+           }, 1500);
+       }
 
 
          // Выход из комнаты с автоматическим закрытием стола или освобождением места
