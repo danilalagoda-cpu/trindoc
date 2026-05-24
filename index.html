@@ -943,7 +943,7 @@
 
                 // --- ЧАСТЬ 3: СИНХРОНИЗАЦИЯ С CLOUD И ЛОГ-ВИ ТРИНА ТОРГОВЛИ ---
 
-        // Прогрузка структуры профиля из Realtime Database при успешном входе
+        // 1. Прогрузка структуры профиля из Realtime Database при успешном входе
         function loadUserProfileFromCloud() {
             if (!currentUserId) return;
 
@@ -955,6 +955,16 @@
                     localUser.ownedShirts = data.ownedShirts || ["default"];
                     localUser.inventory = data.inventory || { cheat: 0, return: 0, cancel: 0 };
                     localUser.activeShirt = data.activeShirt || "default";
+            
+                    // ФИКС ЗАГРУЗКИ: Достаем сохраненный активный стиль из облака
+                    localUser.activeNickStyle = data.activeNickStyle || "default";
+
+                    // Восстанавливаем флаг isActive в массиве предметов магазина
+                    if (window.storeItems && storeItems.nicks) {
+                        storeItems.nicks.forEach(item => {
+                            item.isActive = (item.styleClass === localUser.activeNickStyle);
+                        });
+                    }
 
                     // Десериализация строки друзей
                     let friendsStr = data.friendsList || "";
@@ -974,7 +984,6 @@
                     document.getElementById('auth-panel').style.display = 'none';
                     document.getElementById('screen-dashboard').style.display = 'flex';
 
-
                     // Перерисовываем списки
                     refreshUiWalletsAndStyles();
                     rebuildStoreCards();
@@ -984,7 +993,7 @@
             });
         }
 
-        // Облачный пуш измененного сейва
+           // 2. Облачный пуш измененного сейва с фиксом сохранения стиля
         function saveUserProfileToCloud() {
             if (!currentUserId) return;
 
@@ -992,6 +1001,14 @@
             if (res.corrupted) return; // Блокировка сохранения при взломе памяти
 
             let friendsStr = localUser.friends.map(f => `${f.nick}:${f.level}:${f.shirt}:${f.giftsCount}`).join(',');
+
+            // Ищем, какой стиль сейчас реально активен в магазине, чтобы запушить в базу
+            let currentActiveStyle = "default";
+            if (window.storeItems && storeItems.nicks) {
+                let found = storeItems.nicks.find(item => item.isActive);
+                if (found) currentActiveStyle = found.styleClass;
+            }
+            localUser.activeNickStyle = currentActiveStyle;
 
             let updatedData = {
                 nickname: localUser.nick,
@@ -1001,12 +1018,14 @@
                 ownedShirts: localUser.ownedShirts,
                 inventory: localUser.inventory,
                 activeShirt: localUser.activeShirt,
+                activeNickStyle: localUser.activeNickStyle, // ФИКС: теперь отправляем стиль на сервер!
                 friendsList: friendsStr
             };
 
             database.ref('users/' + currentUserId).update(updatedData);
         }
 
+        // 3. Обновление кошельков и применение классов оформления к нику
         function refreshUiWalletsAndStyles() {
             let res = getSecureResources();
             if (res.corrupted) return;
@@ -1015,16 +1034,16 @@
             document.getElementById('val-trinki').innerText = res.trinki;
 
             let label = document.getElementById('label-username');
-            label.className = "hud-username";
-            
-            // Находим какой неоновый пресет ника активен
-            let activeStyle = "default";
-            storeItems.nicks.forEach(styleItem => {
-                if (localUser.ownedStyles.includes(styleItem.styleClass) && styleItem.isActive) {
-                    activeStyle = styleItem.styleClass;
+            if (label) {
+                label.className = "hud-username";
+        
+                // Берем стиль напрямую из сохраненной переменной профиля
+                let activeStyle = localUser.activeNickStyle || "default";
+        
+                if (activeStyle !== "default" && localUser.ownedStyles.includes(activeStyle)) {
+                    label.classList.add(activeStyle);
                 }
-            });
-            if (activeStyle !== "default") label.classList.add(activeStyle);
+            }
         }
 
         // Менеджер навигации по 5 вкладкам смартфона
@@ -2223,6 +2242,7 @@
                 });
             }
 
+            // --- ПРИМЕНЕНИЕ СТИЛЯ К ВАШЕМУ НИКУ НА СУКНЕ (СНИЗУ) ---
             const myBox = document.getElementById('m-profile-box');
             if (myBox) {
                 if (room.status === "playing" && (room.turn === mySeat.id || room.turn === mySeat.key)) {
@@ -2231,6 +2251,21 @@
                 } else {
                     myBox.style.borderColor = "#282c37";
                     myBox.style.boxShadow = "none";
+                }
+
+                // Находим текстовое поле вашего имени в игровом интерфейсе
+                const myNameLabel = document.getElementById('m-label-player-name') || document.getElementById('label-username-match');
+                if (myNameLabel && mySeat) {
+                    // Очищаем старые классы оформления
+                    myNameLabel.className = ""; 
+                    
+                    // Если у нас в профиле активирован уникальный стиль — вешаем этот класс на ник на сукне!
+                    let activeStyle = localUser.activeNickStyle || "default";
+                    if (activeStyle !== "default" && localUser.ownedStyles.includes(activeStyle)) {
+                        myNameLabel.classList.add(activeStyle);
+                    }
+                    
+                    myNameLabel.innerText = mySeat.name;
                 }
             }
         }
@@ -2696,12 +2731,20 @@
         function appendRoomChatMessage(sender, text) { appendRoomUserMessage(sender, text, "default"); }
         function appendRoomStickerMessage(sender, smile) { appendRoomUserMessage(sender, `<span style="font-size:18px;">${smile}</span>`, "default"); }
         function appendRoomSystemMessage(text) {
-            const box = document.getElementById('match-chat-messages');
+            console.log("[КЛУБ]:", text); // Чтобы вы всегда видели событие в консоли
+            
+            const box = document.getElementById('match-chat-messages') || document.getElementById('m-chat-box');
+            if (!box) {
+                // ЖЕЛЕЗНЫЙ ФИКС: Если чат на экране отсутствует, просто выходим без ошибок!
+                return;
+            }
+            
             let div = document.createElement('div');
             div.innerHTML = `<span style="color:#ebcb8b; font-weight:bold;">[КЛУБ]: ${text}</span>`;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
         }
+
 
         // --- ВСПЛЫВАЮЩИЙ ИНВЕНТАРЬ ПРИВИЛЕГИЙ ЗА СТОЛОМ ---
         function toggleMatchInventory(show) {
